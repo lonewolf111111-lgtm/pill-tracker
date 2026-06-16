@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>PillLog — Know What You Took</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+/* ── TOKENS ── */
+:root {
+  --bg: #0d1117;
+  --surf: #161b22;
+  --card: #1c2128;
+  --bdr: #30363d;
+  --blue: #1f6feb;
+  --blue-dim: #1158c7;
+  --blue-glow: rgba(31,111,235,0.15);
+  --red: #f85149;
+  --red-dim: #da3633;
+  --red-glow: rgba(248,81,73,0.15);
+  --green: #3fb950;
+  --green-dim: #2ea043;
+  --green-glow: rgba(63,185,80,0.12);
+  --amber: #d29922;
+  --txt: #e6edf3;
+  --txt2: #8b949e;
+  --txt3: #484f58;
+  --radius: 10px;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── SCREENS ── */
+.screen { display: none; min-height: 100vh; }
+.screen.active { display: flex; flex-direction: column; }
+
+/* ── LANDING ── */
+#screen-landing {
+  align-items: center;
+  justify-content: center;
+  padding: 24px 20px;
+  text-align: center;
+  background: radial-gradient(ellipse at 50% 0%, rgba(31,111,235,0.08) 0%, transparent 70%);
+}
+.landing-icon { font-size: 56px; margin-bottom: 16px; }
+.landing-title {
+  font-size: clamp(28px, 6vw, 42px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--txt);
+  margin-bottom: 8px;
+}
+.landing-title span { color: var(--blue); }
+.landing-sub {
+  font-size: 16px;
+  color: var(--txt2);
+  max-width: 340px;
+  margin: 0 auto 32px;
+  line-height: 1.6;
+}
+.landing-btns { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 300px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 13px 20px; border-radius: var(--radius);
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  border: none; text-decoration: none; transition: all .15s;
+  width: 100%;
+}
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: var(--blue-dim); }
+.btn-secondary { background: var(--card); color: var(--txt); border: 1px solid var(--bdr); }
+.btn-secondary:hover { border-color: var(--blue); color: var(--blue); }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { background: var(--red-dim); }
+.btn-success { background: var(--green); color: #fff; }
+.btn-success:hover { background: var(--green-dim); }
+.btn-ghost { background: transparent; color: var(--txt2); border: 1px solid var(--bdr); }
+.btn-ghost:hover { color: var(--txt); border-color: var(--txt2); }
+.btn-sm { padding: 8px 14px; font-size: 13px; width: auto; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.landing-features {
+  margin-top: 40px; display: flex; flex-direction: column; gap: 12px;
+  width: 100%; max-width: 340px; text-align: left;
+}
+.feat {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: var(--radius); padding: 12px 14px;
+}
+.feat-icon { font-size: 22px; flex-shrink: 0; }
+.feat-text .ft { font-size: 13px; font-weight: 600; color: var(--txt); }
+.feat-text .fd { font-size: 12px; color: var(--txt2); }
+
+/* ── AUTH SCREENS ── */
+#screen-login, #screen-signup {
+  align-items: center; justify-content: center; padding: 24px 20px;
+}
+.auth-box {
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: 14px; padding: 28px 24px;
+  width: 100%; max-width: 380px;
+}
+.auth-logo { text-align: center; font-size: 32px; margin-bottom: 6px; }
+.auth-title { text-align: center; font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.auth-sub { text-align: center; font-size: 13px; color: var(--txt2); margin-bottom: 24px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--txt2); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .04em; }
+.form-group input {
+  width: 100%; background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: 8px; padding: 11px 13px; font-size: 15px;
+  color: var(--txt); outline: none; transition: border-color .15s;
+}
+.form-group input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px var(--blue-glow); }
+.remember-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.remember-row input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: var(--blue); }
+.remember-row label { font-size: 13px; color: var(--txt2); cursor: pointer; }
+.auth-footer { text-align: center; margin-top: 16px; font-size: 13px; color: var(--txt2); }
+.auth-footer a { color: var(--blue); cursor: pointer; text-decoration: none; }
+.auth-footer a:hover { text-decoration: underline; }
+.auth-error {
+  background: var(--red-glow); border: 1px solid var(--red-dim);
+  border-radius: 8px; padding: 10px 12px; font-size: 13px;
+  color: var(--red); margin-bottom: 14px; display: none;
+}
+
+/* ── DASHBOARD ── */
+#screen-dash { flex-direction: column; }
+.dash-header {
+  background: var(--surf); border-bottom: 1px solid var(--bdr);
+  padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+  position: sticky; top: 0; z-index: 50;
+}
+.dash-header .logo { font-size: 22px; }
+.dash-header h1 { font-size: 16px; font-weight: 700; flex: 1; }
+.dash-header .user-email { font-size: 11px; color: var(--txt2); }
+.dash-body { flex: 1; padding: 16px; max-width: 600px; margin: 0 auto; width: 100%; }
+
+/* ── BIG PANIC BUTTON ── */
+.panic-btn {
+  width: 100%; background: var(--red-glow); border: 2px solid var(--red);
+  border-radius: 14px; padding: 20px; text-align: center;
+  cursor: pointer; margin-bottom: 16px; transition: all .15s;
+}
+.panic-btn:hover { background: rgba(248,81,73,0.25); }
+.panic-btn .pb-icon { font-size: 36px; margin-bottom: 4px; }
+.panic-btn .pb-title { font-size: 18px; font-weight: 700; color: var(--red); }
+.panic-btn .pb-sub { font-size: 12px; color: var(--txt2); margin-top: 2px; }
+
+/* ── SECTION ── */
+.section { margin-bottom: 20px; }
+.section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.section-head h2 { font-size: 14px; font-weight: 600; color: var(--txt2); text-transform: uppercase; letter-spacing: .06em; }
+
+/* ── PILL CARDS ── */
+.pill-list { display: flex; flex-direction: column; gap: 8px; }
+.pill-card {
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: var(--radius); padding: 14px;
+  display: flex; align-items: center; gap: 12px;
+}
+.pill-card.taken { border-color: var(--green); background: var(--green-glow); }
+.pill-check {
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--bdr);
+  background: var(--surf); display: flex; align-items: center; justify-content: center;
+  font-size: 20px; cursor: pointer; flex-shrink: 0; transition: all .15s;
+}
+.pill-card.taken .pill-check { background: var(--green); border-color: var(--green); }
+.pill-info { flex: 1; }
+.pill-name { font-size: 15px; font-weight: 600; }
+.pill-meta { font-size: 12px; color: var(--txt2); }
+.pill-time { font-size: 12px; color: var(--txt2); text-align: right; }
+.pill-time.taken-time { color: var(--green); }
+
+/* ── EMPTY STATE ── */
+.empty-state {
+  text-align: center; padding: 32px 16px;
+  background: var(--card); border: 1px dashed var(--bdr);
+  border-radius: var(--radius);
+}
+.empty-state .ei { font-size: 36px; margin-bottom: 8px; }
+.empty-state p { font-size: 13px; color: var(--txt2); margin-bottom: 14px; }
+
+/* ── ADD MED MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.7);
+  display: none; align-items: flex-end; justify-content: center;
+  z-index: 100; padding: 0;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: 16px 16px 0 0; padding: 24px 20px 32px;
+  width: 100%; max-width: 500px;
+}
+.modal-title { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+.modal-close { float: right; background: none; border: none; color: var(--txt2); font-size: 22px; cursor: pointer; margin-top: -4px; }
+
+/* ── SYMPTOM MODAL ── */
+.symptom-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;
+}
+.sym-btn {
+  background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: 8px; padding: 10px 8px; text-align: center;
+  cursor: pointer; transition: all .15s; font-size: 12px; color: var(--txt2);
+}
+.sym-btn .si { font-size: 20px; display: block; margin-bottom: 3px; }
+.sym-btn.selected { border-color: var(--blue); background: var(--blue-glow); color: var(--txt); }
+.severity-row { margin-bottom: 14px; }
+.severity-row label { display: block; font-size: 12px; color: var(--txt2); margin-bottom: 6px; }
+.severity-row input[type=range] { width: 100%; accent-color: var(--blue); }
+.sev-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--txt3); margin-top: 2px; }
+
+/* ── TODAY LOG ── */
+.log-item {
+  display: flex; gap: 10px; align-items: flex-start;
+  padding: 10px 0; border-bottom: 1px solid var(--bdr);
+}
+.log-item:last-child { border-bottom: none; }
+.log-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+.log-dot.pill { background: var(--green); }
+.log-dot.symptom { background: var(--red); }
+.log-dot.panic { background: var(--amber); }
+.log-text { flex: 1; font-size: 13px; }
+.log-time { font-size: 11px; color: var(--txt3); }
+
+/* ── NAV ── */
+.bottom-nav {
+  background: var(--surf); border-top: 1px solid var(--bdr);
+  display: flex; position: sticky; bottom: 0;
+}
+.nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  padding: 10px 4px 14px; cursor: pointer; border: none;
+  background: none; color: var(--txt2); font-size: 10px; gap: 3px;
+  transition: color .15s;
+}
+.nav-item .ni { font-size: 22px; }
+.nav-item.active, .nav-item:hover { color: var(--blue); }
+
+/* ── TAB PANELS ── */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: var(--green); color: #fff; padding: 10px 20px;
+  border-radius: 99px; font-size: 13px; font-weight: 600;
+  opacity: 0; transition: opacity .3s; z-index: 200; white-space: nowrap;
+  pointer-events: none;
+}
+.toast.show { opacity: 1; }
+.toast.error { background: var(--red); }
+
+/* ── SETTINGS ── */
+.settings-section { margin-bottom: 20px; }
+.settings-section h3 { font-size: 12px; color: var(--txt2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.settings-row {
+  background: var(--card); border: 1px solid var(--bdr); border-radius: var(--radius);
+  padding: 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
+}
+.settings-row .sr-icon { font-size: 20px; flex-shrink: 0; }
+.settings-row .sr-text { flex: 1; }
+.settings-row .sr-title { font-size: 14px; font-weight: 500; }
+.settings-row .sr-sub { font-size: 12px; color: var(--txt2); }
+
+@media(min-width:500px){
+  .modal-overlay { align-items: center; padding: 20px; }
+  .modal { border-radius: 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- LANDING -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="screen active" id="screen-landing">
+  <div class="landing-icon">💊</div>
+  <h1 class="landing-title">Pill<span>Log</span></h1>
+  <p class="landing-sub">Know what you took, when you took it. One tap logging — even when you feel terrible.</p>
+  <div class="landing-btns">
+    <button class="btn btn-primary" onclick="showScreen('login')">Sign In</button>
+    <button class="btn btn-secondary" onclick="showScreen('signup')">Create Account</button>
+  </div>
+  <div class="landing-features">
+    <div class="feat">
+      <div class="feat-icon">💊</div>
+      <div class="feat-text">
+        <div class="ft">Daily pill tracking</div>
+        <div class="fd">One tap to log each med. See what you took today at a glance.</div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🚨</div>
+      <div class="feat-text">
+        <div class="ft">I don't feel right button</div>
+        <div class="fd">One tap logs your symptoms, meds taken, and exact time — for the ER.</div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🩺</div>
+      <div class="feat-text">
+        <div class="ft">Doctor share key</div>
+        <div class="fd">Give your doctor a QR code. They see your full history instantly.</div>
+      </div>
+    </div>
+    <div class="feat">
+      <div class="feat-icon">🔔</div>
+      <div class="feat-text">
+        <div class="ft">Reminders</div>
+        <div class="fd">Get reminded when it's time. Never wonder if you took it again.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- LOGIN -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="screen" id="screen-login">
+  <div class="auth-box">
+    <div class="auth-logo">💊</div>
+    <div class="auth-title">Welcome back</div>
+    <div class="auth-sub">Sign in to your PillLog account</div>
+    <div class="auth-error" id="login-error"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@email.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <div class="remember-row">
+      <input type="checkbox" id="remember-me" checked>
+      <label for="remember-me">Keep me signed in</label>
+    </div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="auth-footer">
+      No account? <a onclick="showScreen('signup')">Create one free</a>
+      &nbsp;·&nbsp; <a onclick="showScreen('landing')">← Back</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- SIGNUP -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="screen" id="screen-signup">
+  <div class="auth-box">
+    <div class="auth-logo">💊</div>
+    <div class="auth-title">Create account</div>
+    <div class="auth-sub">Free forever. Your data stays yours.</div>
+    <div class="auth-error" id="signup-error"></div>
+    <div class="form-group">
+      <label>Your name</label>
+      <input type="text" id="signup-name" placeholder="First name" autocomplete="given-name">
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="signup-email" placeholder="you@email.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="signup-password" placeholder="Min 8 characters" autocomplete="new-password">
+    </div>
+    <button class="btn btn-primary" id="signup-btn" onclick="doSignup()">Create Account</button>
+    <div class="auth-footer">
+      Already have an account? <a onclick="showScreen('login')">Sign in</a>
+      &nbsp;·&nbsp; <a onclick="showScreen('landing')">← Back</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- DASHBOARD -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="screen" id="screen-dash">
+  <div class="dash-header">
+    <div class="logo">💊</div>
+    <h1>PillLog</h1>
+    <div class="user-email" id="dash-email"></div>
+  </div>
+
+  <div class="dash-body">
+
+    <!-- TODAY TAB -->
+    <div class="tab-panel active" id="tab-today">
+      <!-- PANIC BUTTON -->
+      <div class="panic-btn" onclick="openSymptomModal(true)">
+        <div class="pb-icon">🚨</div>
+        <div class="pb-title">I Don't Feel Right</div>
+        <div class="pb-sub">Tap to log symptoms + meds taken right now</div>
+      </div>
+
+      <!-- TODAY'S PILLS -->
+      <div class="section">
+        <div class="section-head">
+          <h2>Today's Medications</h2>
+          <button class="btn btn-ghost btn-sm" onclick="openAddMed()">+ Add Med</button>
+        </div>
+        <div class="pill-list" id="pill-list">
+          <div class="empty-state">
+            <div class="ei">💊</div>
+            <p>No medications added yet.</p>
+            <button class="btn btn-primary btn-sm" onclick="openAddMed()">Add Your First Med</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TODAY'S LOG -->
+      <div class="section">
+        <div class="section-head">
+          <h2>Today's Log</h2>
+        </div>
+        <div id="today-log">
+          <div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">Nothing logged yet today.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div class="tab-panel" id="tab-history">
+      <div class="section">
+        <div class="section-head"><h2>Recent History</h2></div>
+        <div id="history-list">
+          <div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">Loading history...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SYMPTOMS TAB -->
+    <div class="tab-panel" id="tab-symptoms">
+      <div class="section">
+        <div class="section-head"><h2>Log Symptoms</h2></div>
+        <button class="btn btn-danger" style="margin-bottom:16px;" onclick="openSymptomModal(false)">
+          🩺 Log How I Feel Right Now
+        </button>
+        <div id="symptom-history">
+          <div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No symptoms logged yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div class="tab-panel" id="tab-settings">
+      <div class="settings-section">
+        <h3>Account</h3>
+        <div class="settings-row">
+          <div class="sr-icon">👤</div>
+          <div class="sr-text">
+            <div class="sr-title" id="settings-name">—</div>
+            <div class="sr-sub" id="settings-email">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Doctor Access</h3>
+        <div class="settings-row" style="flex-direction:column;align-items:flex-start;gap:10px;">
+          <div style="display:flex;gap:10px;align-items:center;width:100%;">
+            <div class="sr-icon">🩺</div>
+            <div class="sr-text">
+              <div class="sr-title">Share with Doctor</div>
+              <div class="sr-sub">Generate a key your doctor can use to view your history</div>
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="generateShareKey()">Generate Share Key</button>
+          <div id="share-key-display" style="display:none;width:100%;">
+            <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:12px;font-size:13px;word-break:break-all;color:var(--txt2);margin-bottom:8px;" id="share-key-text"></div>
+            <button class="btn btn-ghost btn-sm" onclick="copyShareKey()">Copy Link</button>
+          </div>
+        </div>
+      </div>
+      <div class="settings-section">
+        <h3>Medications</h3>
+        <div class="settings-row" style="cursor:pointer;" onclick="openAddMed()">
+          <div class="sr-icon">➕</div>
+          <div class="sr-text">
+            <div class="sr-title">Add Medication</div>
+            <div class="sr-sub">Add a new pill to your daily tracker</div>
+          </div>
+        </div>
+        <div id="med-settings-list"></div>
+      </div>
+      <div class="settings-section">
+        <h3>App</h3>
+        <div class="settings-row" style="cursor:pointer;" onclick="doSignOut()">
+          <div class="sr-icon">🚪</div>
+          <div class="sr-text">
+            <div class="sr-title" style="color:var(--red);">Sign Out</div>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--txt3);">
+        PillLog v1.0.0 · Made by lonewolf111111-lgtm · © 2026
+      </div>
+    </div>
+
+  </div><!-- /dash-body -->
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="nav-item active" onclick="switchTab('today',this)">
+      <span class="ni">💊</span>Today
+    </button>
+    <button class="nav-item" onclick="switchTab('history',this)">
+      <span class="ni">📋</span>History
+    </button>
+    <button class="nav-item" onclick="switchTab('symptoms',this)">
+      <span class="ni">🩺</span>Symptoms
+    </button>
+    <button class="nav-item" onclick="switchTab('settings',this)">
+      <span class="ni">⚙️</span>Settings
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- ADD MED MODAL -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="add-med-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('add-med-modal')">✕</button>
+    <div class="modal-title">Add Medication</div>
+    <div class="form-group">
+      <label>Medication Name</label>
+      <input type="text" id="med-name" placeholder="e.g. Lisinopril, Omeprazole">
+    </div>
+    <div class="form-group">
+      <label>Dosage</label>
+      <input type="text" id="med-dosage" placeholder="e.g. 10mg, 20mg">
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="med-type" style="width:100%;background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);outline:none;">
+        <option value="blood_pressure">Blood Pressure</option>
+        <option value="ulcer">Ulcer / Stomach</option>
+        <option value="heart">Heart</option>
+        <option value="pain">Pain Relief</option>
+        <option value="anxiety">Anxiety / Mental Health</option>
+        <option value="diabetes">Diabetes</option>
+        <option value="thyroid">Thyroid</option>
+        <option value="blood_thinner">Blood Thinner</option>
+        <option value="antibiotic">Antibiotic</option>
+        <option value="vitamin">Vitamin / Supplement</option>
+        <option value="as_needed">As Needed (PRN)</option>
+        <option value="other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Reminder Time (optional)</label>
+      <input type="time" id="med-time" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+      <input type="checkbox" id="med-as-needed" style="width:16px;height:16px;accent-color:var(--blue);">
+      <label for="med-as-needed" style="font-size:13px;color:var(--txt2);">As needed (not daily)</label>
+    </div>
+    <button class="btn btn-primary" onclick="saveMed()">Save Medication</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- SYMPTOM MODAL -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="symptom-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('symptom-modal')">✕</button>
+    <div class="modal-title" id="symptom-modal-title">How do you feel?</div>
+    <p style="font-size:13px;color:var(--txt2);margin-bottom:14px;">Tap everything you're feeling right now.</p>
+    <div class="symptom-grid">
+      <div class="sym-btn" onclick="toggleSym(this,'dizzy')" data-sym="dizzy"><span class="si">😵</span>Dizzy / Lightheaded</div>
+      <div class="sym-btn" onclick="toggleSym(this,'flutter')" data-sym="flutter"><span class="si">💓</span>Heart Flutter</div>
+      <div class="sym-btn" onclick="toggleSym(this,'racing')" data-sym="racing"><span class="si">💗</span>Racing Heart</div>
+      <div class="sym-btn" onclick="toggleSym(this,'faint')" data-sym="faint"><span class="si">😶</span>Feeling Faint</div>
+      <div class="sym-btn" onclick="toggleSym(this,'panic')" data-sym="panic"><span class="si">😰</span>Panic / Anxiety</div>
+      <div class="sym-btn" onclick="toggleSym(this,'sweat')" data-sym="sweat"><span class="si">🥵</span>Cold Sweats</div>
+      <div class="sym-btn" onclick="toggleSym(this,'shake')" data-sym="shake"><span class="si">🫨</span>Shaking / Trembling</div>
+      <div class="sym-btn" onclick="toggleSym(this,'breath')" data-sym="breath"><span class="si">😮‍💨</span>Short of Breath</div>
+      <div class="sym-btn" onclick="toggleSym(this,'chest')" data-sym="chest"><span class="si">🫀</span>Chest Tightness</div>
+      <div class="sym-btn" onclick="toggleSym(this,'nausea')" data-sym="nausea"><span class="si">🤢</span>Nausea</div>
+      <div class="sym-btn" onclick="toggleSym(this,'headache')" data-sym="headache"><span class="si">🤕</span>Headache</div>
+      <div class="sym-btn" onclick="toggleSym(this,'foggy')" data-sym="foggy"><span class="si">🌫️</span>Brain Fog</div>
+      <div class="sym-btn" onclick="toggleSym(this,'cramp')" data-sym="cramp"><span class="si">😣</span>Cramping / Pain</div>
+      <div class="sym-btn" onclick="toggleSym(this,'fatigue')" data-sym="fatigue"><span class="si">😴</span>Extreme Fatigue</div>
+      <div class="sym-btn" onclick="toggleSym(this,'numb')" data-sym="numb"><span class="si">🦿</span>Numbness / Tingling</div>
+      <div class="sym-btn" onclick="toggleSym(this,'vision')" data-sym="vision"><span class="si">👁️</span>Vision Changes</div>
+    </div>
+    <div class="severity-row">
+      <label>Severity: <strong id="sev-val">5</strong> / 10</label>
+      <input type="range" min="1" max="10" value="5" id="severity-slider" oninput="document.getElementById('sev-val').textContent=this.value">
+      <div class="sev-labels"><span>Mild</span><span>Moderate</span><span>Severe</span></div>
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input type="text" id="symptom-notes" placeholder="Any other details...">
+    </div>
+    <button class="btn btn-danger" onclick="saveSymptoms()">Log This Episode</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+// CONFIG — PASTE YOUR SUPABASE KEYS HERE
+// ══════════════════════════════════════════════
+const SUPABASE_URL = ' https://vsmavlxhdjrnviuuflzc.supabase.co';
+const SUPABASE_KEY = ' sb_publishable_6DqSXVH7cVhanwCw6YsOvw_vGazYJS7';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let currentUser = null;
+let medications = [];
+let todayLogs = [];
+let isPanicMode = false;
+let selectedSymptoms = [];
+
+// ══════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════
+async function init() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    currentUser = session.user;
+    await loadDashboard();
+    showScreen('dash');
+  } else {
+    showScreen('landing');
+  }
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      await loadDashboard();
+      showScreen('dash');
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      showScreen('landing');
+    }
+  });
+}
+
+// ══════════════════════════════════════════════
+// SCREENS
+// ══════════════════════════════════════════════
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ══════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const remember = document.getElementById('remember-me').checked;
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Signing in...';
+
+  try {
+    const { error } = await sb.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+  } catch (e) {
+    errEl.textContent = e.message || 'Sign in failed. Check your email and password.';
+    errEl.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+async function doSignup() {
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const btn = document.getElementById('signup-btn');
+  const errEl = document.getElementById('signup-error');
+  errEl.style.display = 'none';
+
+  if (!name || !email || !password) {
+    errEl.textContent = 'Please fill in all fields.';
+    errEl.style.display = 'block'; return;
+  }
+  if (password.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters.';
+    errEl.style.display = 'block'; return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Creating account...';
+
+  try {
+    const { error } = await sb.auth.signUp({
+      email, password,
+      options: { data: { full_name: name } }
+    });
+    if (error) throw error;
+    showToast('Account created! Check your email to confirm.');
+    showScreen('login');
+  } catch (e) {
+    errEl.textContent = e.message || 'Signup failed.';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = 'Create Account';
+}
+
+async function doSignOut() {
+  await sb.auth.signOut();
+  showToast('Signed out.');
+}
+
+// ══════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════
+async function loadDashboard() {
+  if (!currentUser) return;
+  document.getElementById('dash-email').textContent = currentUser.email;
+  document.getElementById('settings-email').textContent = currentUser.email;
+  document.getElementById('settings-name').textContent = currentUser.user_metadata?.full_name || 'Your Account';
+  await loadMedications();
+  await loadTodayLogs();
+  renderPillList();
+  renderTodayLog();
+}
+
+async function loadMedications() {
+  const { data, error } = await sb.from('medications')
+    .select('*').eq('user_id', currentUser.id).eq('active', true).order('created_at');
+  if (!error) medications = data || [];
+  renderMedSettings();
+}
+
+async function loadTodayLogs() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const { data, error } = await sb.from('pill_logs')
+    .select('*, medications(name, dosage)')
+    .eq('user_id', currentUser.id)
+    .gte('taken_at', today.toISOString())
+    .order('taken_at', { ascending: false });
+  if (!error) todayLogs = data || [];
+}
+
+// ══════════════════════════════════════════════
+// PILL LIST
+// ══════════════════════════════════════════════
+function renderPillList() {
+  const container = document.getElementById('pill-list');
+  if (!medications.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="ei">💊</div>
+      <p>No medications added yet.</p>
+      <button class="btn btn-primary btn-sm" onclick="openAddMed()">Add Your First Med</button>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = '';
+  medications.forEach(med => {
+    const log = todayLogs.find(l => l.medication_id === med.id);
+    const taken = !!log;
+    const card = document.createElement('div');
+    card.className = 'pill-card' + (taken ? ' taken' : '');
+    card.innerHTML = `
+      <div class="pill-check" onclick="togglePill('${med.id}','${med.name}')">${taken ? '✓' : ''}</div>
+      <div class="pill-info">
+        <div class="pill-name">${med.name}</div>
+        <div class="pill-meta">${med.dosage || ''} ${med.as_needed ? '· As needed' : '· Daily'}</div>
+      </div>
+      <div class="pill-time ${taken ? 'taken-time' : ''}">
+        ${taken ? '✓ ' + formatTime(log.taken_at) : med.schedule_time || ''}
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+async function togglePill(medId, medName) {
+  const existing = todayLogs.find(l => l.medication_id === medId);
+  if (existing) {
+    await sb.from('pill_logs').delete().eq('id', existing.id);
+    showToast(medName + ' unmarked');
+  } else {
+    await sb.from('pill_logs').insert({
+      user_id: currentUser.id,
+      medication_id: medId,
+      taken_at: new Date().toISOString()
+    });
+    showToast('✓ ' + medName + ' logged!');
+  }
+  await loadTodayLogs();
+  renderPillList();
+  renderTodayLog();
+}
+
+function renderTodayLog() {
+  const container = document.getElementById('today-log');
+  if (!todayLogs.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">Nothing logged yet today.</div>';
+    return;
+  }
+  container.innerHTML = todayLogs.map(log => `
+    <div class="log-item">
+      <div class="log-dot pill"></div>
+      <div class="log-text">
+        <strong>${log.medications?.name || 'Unknown'}</strong> ${log.medications?.dosage || ''}
+      </div>
+      <div class="log-time">${formatTime(log.taken_at)}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// ADD MED
+// ══════════════════════════════════════════════
+function openAddMed() {
+  document.getElementById('med-name').value = '';
+  document.getElementById('med-dosage').value = '';
+  document.getElementById('med-time').value = '';
+  document.getElementById('med-as-needed').checked = false;
+  document.getElementById('add-med-modal').classList.add('open');
+}
+
+async function saveMed() {
+  const name = document.getElementById('med-name').value.trim();
+  if (!name) { showToast('Enter a medication name', true); return; }
+
+  const { error } = await sb.from('medications').insert({
+    user_id: currentUser.id,
+    name,
+    dosage: document.getElementById('med-dosage').value.trim(),
+    pill_type: document.getElementById('med-type').value,
+    schedule_time: document.getElementById('med-time').value,
+    as_needed: document.getElementById('med-as-needed').checked,
+    active: true
+  });
+
+  if (error) { showToast('Error saving: ' + error.message, true); return; }
+  showToast('💊 ' + name + ' added!');
+  closeModal('add-med-modal');
+  await loadMedications();
+  renderPillList();
+}
+
+function renderMedSettings() {
+  const container = document.getElementById('med-settings-list');
+  container.innerHTML = medications.map(med => `
+    <div class="settings-row">
+      <div class="sr-icon">💊</div>
+      <div class="sr-text">
+        <div class="sr-title">${med.name} ${med.dosage ? '· ' + med.dosage : ''}</div>
+        <div class="sr-sub">${med.as_needed ? 'As needed' : 'Daily'} ${med.schedule_time ? '· ' + med.schedule_time : ''}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red);" onclick="removeMed('${med.id}','${med.name}')">Remove</button>
+    </div>`).join('');
+}
+
+async function removeMed(id, name) {
+  if (!confirm('Remove ' + name + '?')) return;
+  await sb.from('medications').update({ active: false }).eq('id', id);
+  showToast(name + ' removed');
+  await loadMedications();
+  renderPillList();
+}
+
+// ══════════════════════════════════════════════
+// SYMPTOMS
+// ══════════════════════════════════════════════
+function openSymptomModal(isPanic) {
+  isPanicMode = isPanic;
+  selectedSymptoms = [];
+  document.querySelectorAll('.sym-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('severity-slider').value = isPanic ? 8 : 5;
+  document.getElementById('sev-val').textContent = isPanic ? '8' : '5';
+  document.getElementById('symptom-notes').value = '';
+  document.getElementById('symptom-modal-title').textContent = isPanic ? '🚨 What are you feeling?' : 'Log Symptoms';
+  document.getElementById('symptom-modal').classList.add('open');
+}
+
+function toggleSym(el, sym) {
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) {
+    selectedSymptoms.push(sym);
+  } else {
+    selectedSymptoms = selectedSymptoms.filter(s => s !== sym);
+  }
+}
+
+async function saveSymptoms() {
+  const severity = parseInt(document.getElementById('severity-slider').value);
+  const notes = document.getElementById('symptom-notes').value.trim();
+
+  const { error } = await sb.from('symptom_logs').insert({
+    user_id: currentUser.id,
+    logged_at: new Date().toISOString(),
+    symptoms: selectedSymptoms,
+    severity,
+    panic_episode: isPanicMode,
+    notes
+  });
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast(isPanicMode ? '🚨 Episode logged. You got this.' : '✓ Symptoms logged');
+  closeModal('symptom-modal');
+  await loadSymptomHistory();
+}
+
+async function loadSymptomHistory() {
+  const { data } = await sb.from('symptom_logs')
+    .select('*').eq('user_id', currentUser.id)
+    .order('logged_at', { ascending: false }).limit(20);
+
+  const container = document.getElementById('symptom-history');
+  if (!data?.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No symptoms logged yet.</div>';
+    return;
+  }
+  container.innerHTML = data.map(log => `
+    <div class="log-item">
+      <div class="log-dot ${log.panic_episode ? 'panic' : 'symptom'}"></div>
+      <div class="log-text">
+        <strong>${log.panic_episode ? '🚨 Episode' : '🩺 Symptoms'}</strong>
+        · Severity ${log.severity}/10<br>
+        <span style="color:var(--txt2);font-size:12px;">${(log.symptoms || []).join(', ') || 'No symptoms selected'}</span>
+        ${log.notes ? '<br><span style="color:var(--txt3);font-size:11px;">' + log.notes + '</span>' : ''}
+      </div>
+      <div class="log-time">${formatDate(log.logged_at)}</div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════
+// SHARE KEY
+// ══════════════════════════════════════════════
+async function generateShareKey() {
+  const key = 'share_' + Math.random().toString(36).substr(2, 16);
+  const { error } = await sb.from('share_keys').insert({
+    user_id: currentUser.id,
+    share_key: key,
+    active: true
+  });
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  const url = window.location.origin + window.location.pathname + '?share=' + key;
+  document.getElementById('share-key-text').textContent = url;
+  document.getElementById('share-key-display').style.display = 'block';
+  showToast('Share key generated!');
+}
+
+function copyShareKey() {
+  const text = document.getElementById('share-key-text').textContent;
+  navigator.clipboard.writeText(text).then(() => showToast('Link copied!'));
+}
+
+// ══════════════════════════════════════════════
+// TABS
+// ══════════════════════════════════════════════
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'history') loadHistoryTab();
+  if (name === 'symptoms') loadSymptomHistory();
+}
+
+async function loadHistoryTab() {
+  const { data } = await sb.from('pill_logs')
+    .select('*, medications(name, dosage)')
+    .eq('user_id', currentUser.id)
+    .order('taken_at', { ascending: false })
+    .limit(50);
+
+  const container = document.getElementById('history-list');
+  if (!data?.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No history yet.</div>';
+    return;
+  }
+  let lastDate = '';
+  container.innerHTML = data.map(log => {
+    const d = new Date(log.taken_at).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+    const dateHeader = d !== lastDate ? `<div style="font-size:11px;color:var(--txt3);padding:8px 0 4px;text-transform:uppercase;letter-spacing:.06em;">${d}</div>` : '';
+    lastDate = d;
+    return dateHeader + `<div class="log-item">
+      <div class="log-dot pill"></div>
+      <div class="log-text"><strong>${log.medications?.name || '—'}</strong> ${log.medications?.dosage || ''}</div>
+      <div class="log-time">${formatTime(log.taken_at)}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function formatTime(iso) {
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return formatTime(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// ══════════════════════════════════════════════
+// KEYBOARD — enter key on login
+// ══════════════════════════════════════════════
+document.getElementById('login-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+document.getElementById('signup-password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSignup();
+});
+
+// BOOT
+init();
+</script>
+</body>
+</html>
