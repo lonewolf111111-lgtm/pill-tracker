@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Supabase Test</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+  input { display: block; margin: 10px 0; padding: 8px; width: 300px; }
+  button { padding: 10px 20px; background: #0f0; color: #000; border: none; cursor: pointer; font-weight: bold; }
+  #output { margin-top: 20px; padding: 15px; background: #000; border: 1px solid #0f0; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+
+<h2>Bare Bones Supabase Signup Test</h2>
+
+<input type="email" id="email" placeholder="test email" value="test1234567@gmail.com">
+<input type="password" id="password" placeholder="password" value="testpassword123">
+<button onclick="testSignup()">TEST SIGNUP</button>
+
+<div id="output">Waiting...</div>
+
+<script>
+const SUPABASE_URL = 'https://vsmavlxhdjrnviuuflzc.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_6DqSXVH7cVhanwCw6YsOvw_vGazYJS7';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function testSignup() {
+  const email = document.getElementById('email').value;
+  const password = document.getElementById('password').value;
+  const out = document.getElementById('output');
+  out.textContent = 'Sending request...';
+
+  try {
+    const result = await sb.auth.signUp({ email, password });
+    out.textContent = 'FULL RESPONSE:\n\n' + JSON.stringify(result, null, 2);
+  } catch (e) {
+    out.textContent = 'CAUGHT EXCEPTION:\n\n' + JSON.stringify(e, null, 2) + '\n\nMessage: ' + e.message;
+  }
+}
+</script>
+
+</body>
+</html>
