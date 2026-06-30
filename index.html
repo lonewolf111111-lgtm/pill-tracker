@@ -613,6 +613,21 @@ body {
   </div>
 </div>
 
+<!-- ═══════════════════════════════════════════ -->
+<!-- EDIT LOG MODAL -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="edit-log-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('edit-log-modal')">✕</button>
+    <div class="modal-title" id="edit-log-title">Edit Entry</div>
+    <div id="edit-log-body"></div>
+    <div style="display:flex;gap:8px;margin-top:6px;">
+      <button class="btn btn-primary" id="edit-log-save-btn">Save Changes</button>
+      <button class="btn btn-danger" id="edit-log-delete-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -815,7 +830,7 @@ function renderTodayLog() {
     return;
   }
   container.innerHTML = todayLogs.map(log => `
-    <div class="log-item">
+    <div class="log-item" style="cursor:pointer;" onclick="openEditPillLog('${log.id}')">
       <div class="log-dot pill"></div>
       <div class="log-text">
         <strong>${log.medications?.name || 'Unknown'}</strong> ${log.medications?.dosage || ''}
@@ -930,7 +945,7 @@ async function loadSymptomHistory() {
     return;
   }
   container.innerHTML = data.map(log => `
-    <div class="log-item">
+    <div class="log-item" style="cursor:pointer;" onclick="openEditSymptomLog('${log.id}')">
       <div class="log-dot ${log.panic_episode ? 'panic' : 'symptom'}"></div>
       <div class="log-text">
         <strong>${log.panic_episode ? '🚨 Episode' : '🩺 Symptoms'}</strong>
@@ -993,12 +1008,147 @@ async function loadHistoryTab() {
     const d = new Date(log.taken_at).toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
     const dateHeader = d !== lastDate ? `<div style="font-size:11px;color:var(--txt3);padding:8px 0 4px;text-transform:uppercase;letter-spacing:.06em;">${d}</div>` : '';
     lastDate = d;
-    return dateHeader + `<div class="log-item">
+    return dateHeader + `<div class="log-item" style="cursor:pointer;" onclick="openEditPillLog('${log.id}')">
       <div class="log-dot pill"></div>
       <div class="log-text"><strong>${log.medications?.name || '—'}</strong> ${log.medications?.dosage || ''}</div>
       <div class="log-time">${formatTime(log.taken_at)}</div>
     </div>`;
   }).join('');
+}
+
+// ══════════════════════════════════════════════
+// EDIT PAST ENTRIES
+// ══════════════════════════════════════════════
+let editingLogId = null;
+let editingLogType = null;
+
+async function openEditPillLog(logId) {
+  const { data: log } = await sb.from('pill_logs')
+    .select('*, medications(name, dosage)').eq('id', logId).single();
+  if (!log) return;
+
+  editingLogId = logId;
+  editingLogType = 'pill';
+
+  const localDt = toLocalInputValue(log.taken_at);
+  document.getElementById('edit-log-title').textContent = 'Edit: ' + (log.medications?.name || 'Medication');
+  document.getElementById('edit-log-body').innerHTML = `
+    <div class="form-group">
+      <label>Status</label>
+      <select id="edit-pill-status" style="width:100%;background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);outline:none;">
+        <option value="taken" ${!log.skipped ? 'selected' : ''}>Took it</option>
+        <option value="partial" ${log.notes === 'partial' ? 'selected' : ''}>Took partial dose</option>
+        <option value="extra" ${log.notes === 'extra' ? 'selected' : ''}>Took extra dose</option>
+        <option value="skipped_forgot" ${log.skipped && log.notes !== 'on purpose' ? 'selected' : ''}>Skipped — forgot</option>
+        <option value="skipped_purpose" ${log.skipped && log.notes === 'on purpose' ? 'selected' : ''}>Skipped — on purpose</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Time Taken</label>
+      <input type="datetime-local" id="edit-pill-time" value="${localDt}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>`;
+
+  document.getElementById('edit-log-save-btn').onclick = saveEditPillLog;
+  document.getElementById('edit-log-delete-btn').onclick = deleteEditLog;
+  document.getElementById('edit-log-modal').classList.add('open');
+}
+
+async function saveEditPillLog() {
+  const status = document.getElementById('edit-pill-status').value;
+  const timeVal = document.getElementById('edit-pill-time').value;
+  if (!timeVal) { showToast('Pick a time', true); return; }
+
+  const taken_at = new Date(timeVal).toISOString();
+  const skipped = status.startsWith('skipped');
+  let notes = null;
+  if (status === 'partial') notes = 'partial';
+  else if (status === 'extra') notes = 'extra';
+  else if (status === 'skipped_purpose') notes = 'on purpose';
+
+  const { error } = await sb.from('pill_logs')
+    .update({ taken_at, skipped, notes })
+    .eq('id', editingLogId);
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('✓ Entry updated');
+  closeModal('edit-log-modal');
+  await loadTodayLogs();
+  renderPillList();
+  renderTodayLog();
+  if (document.getElementById('tab-history').classList.contains('active')) loadHistoryTab();
+}
+
+async function openEditSymptomLog(logId) {
+  const { data: log } = await sb.from('symptom_logs').select('*').eq('id', logId).single();
+  if (!log) return;
+
+  editingLogId = logId;
+  editingLogType = 'symptom';
+
+  const localDt = toLocalInputValue(log.logged_at);
+  document.getElementById('edit-log-title').textContent = log.panic_episode ? '🚨 Edit Episode' : '🩺 Edit Symptoms';
+  document.getElementById('edit-log-body').innerHTML = `
+    <div class="form-group">
+      <label>Time</label>
+      <input type="datetime-local" id="edit-symptom-time" value="${localDt}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>
+    <div class="severity-row">
+      <label>Severity: <strong id="edit-sev-val">${log.severity}</strong> / 10</label>
+      <input type="range" min="1" max="10" value="${log.severity}" id="edit-severity-slider" oninput="document.getElementById('edit-sev-val').textContent=this.value">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="edit-symptom-notes" value="${log.notes ? log.notes.replace(/"/g, '&quot;') : ''}" placeholder="Any other details...">
+    </div>
+    <p style="font-size:11px;color:var(--txt2);">Symptoms logged: ${(log.symptoms || []).join(', ') || 'none'} (tap delete and re-log to change symptom selection)</p>`;
+
+  document.getElementById('edit-log-save-btn').onclick = saveEditSymptomLog;
+  document.getElementById('edit-log-delete-btn').onclick = deleteEditLog;
+  document.getElementById('edit-log-modal').classList.add('open');
+}
+
+async function saveEditSymptomLog() {
+  const timeVal = document.getElementById('edit-symptom-time').value;
+  if (!timeVal) { showToast('Pick a time', true); return; }
+
+  const logged_at = new Date(timeVal).toISOString();
+  const severity = parseInt(document.getElementById('edit-severity-slider').value);
+  const notes = document.getElementById('edit-symptom-notes').value.trim();
+
+  const { error } = await sb.from('symptom_logs')
+    .update({ logged_at, severity, notes })
+    .eq('id', editingLogId);
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('✓ Entry updated');
+  closeModal('edit-log-modal');
+  await loadSymptomHistory();
+}
+
+async function deleteEditLog() {
+  if (!confirm('Delete this entry? This cannot be undone.')) return;
+  const table = editingLogType === 'pill' ? 'pill_logs' : 'symptom_logs';
+  const { error } = await sb.from(table).delete().eq('id', editingLogId);
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('Entry deleted');
+  closeModal('edit-log-modal');
+
+  if (editingLogType === 'pill') {
+    await loadTodayLogs();
+    renderPillList();
+    renderTodayLog();
+    if (document.getElementById('tab-history').classList.contains('active')) loadHistoryTab();
+  } else {
+    await loadSymptomHistory();
+  }
+}
+
+function toLocalInputValue(iso) {
+  const d = new Date(iso);
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 // ══════════════════════════════════════════════
