@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>PillLog — Know What You Took</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <style>
 /* ── TOKENS ── */
 :root {
@@ -542,6 +543,10 @@ body {
           </div>
           <button class="btn btn-secondary btn-sm" onclick="generateShareKey()">Generate Share Key</button>
           <div id="share-key-display" style="display:none;width:100%;">
+            <div style="background:#fff;border-radius:10px;padding:14px;display:flex;justify-content:center;margin-bottom:10px;">
+              <canvas id="share-qr-canvas"></canvas>
+            </div>
+            <p style="font-size:12px;color:var(--txt2);text-align:center;margin-bottom:10px;">Have your doctor scan this with their phone camera</p>
             <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:12px;font-size:13px;word-break:break-all;color:var(--txt2);margin-bottom:8px;" id="share-key-text"></div>
             <button class="btn btn-ghost btn-sm" onclick="copyShareKey()">Copy Link</button>
           </div>
@@ -1293,6 +1298,9 @@ async function generateShareKey() {
   const url = window.location.origin + window.location.pathname + '?share=' + key;
   document.getElementById('share-key-text').textContent = url;
   document.getElementById('share-key-display').style.display = 'block';
+  QRCode.toCanvas(document.getElementById('share-qr-canvas'), url, { width: 220, margin: 1 }, err => {
+    if (err) showToast('QR code failed to render', true);
+  });
   showToast('Share key generated!');
 }
 
