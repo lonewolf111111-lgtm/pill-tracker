@@ -278,6 +278,34 @@ body {
 .settings-row .sr-title { font-size: 14px; font-weight: 500; }
 .settings-row .sr-sub { font-size: 12px; color: var(--txt2); }
 
+/* ── VITALS ── */
+.bp-input-row { display: flex; gap: 10px; }
+.bp-input-row .form-group { flex: 1; margin-bottom: 0; }
+.vitals-card {
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 8px;
+  display: flex; align-items: center; gap: 12px; cursor: pointer;
+}
+.vitals-reading { font-size: 20px; font-weight: 700; }
+.vitals-tag {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; padding: 3px 8px; border-radius: 99px;
+  flex-shrink: 0;
+}
+.vitals-tag.normal { background: var(--green-glow); color: var(--green); }
+.vitals-tag.elevated { background: rgba(210,153,34,0.15); color: var(--amber); }
+.vitals-tag.high { background: var(--red-glow); color: var(--red); }
+.vitals-meta { flex: 1; }
+.vitals-notes { font-size: 12px; color: var(--txt2); margin-top: 2px; }
+.vitals-time { font-size: 11px; color: var(--txt3); text-align: right; flex-shrink: 0; }
+.chart-box {
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 16px;
+}
+.chart-legend { display: flex; gap: 16px; font-size: 11px; color: var(--txt2); margin-top: 8px; justify-content: center; }
+.chart-legend span { display: flex; align-items: center; gap: 5px; }
+.chart-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
 @media(min-width:500px){
   .modal-overlay { align-items: center; padding: 20px; }
   .modal { border-radius: 16px; }
@@ -457,6 +485,26 @@ body {
       </div>
     </div>
 
+    <!-- VITALS TAB -->
+    <div class="tab-panel" id="tab-vitals">
+      <div class="section">
+        <div class="section-head">
+          <h2>Blood Pressure</h2>
+          <button class="btn btn-ghost btn-sm" onclick="openVitalsModal()">+ Log BP</button>
+        </div>
+        <div class="chart-box">
+          <svg id="vitals-chart" viewBox="0 0 320 140" style="width:100%;height:140px;"></svg>
+          <div class="chart-legend">
+            <span><span class="chart-dot" style="background:var(--red);"></span>Systolic</span>
+            <span><span class="chart-dot" style="background:var(--blue);"></span>Diastolic</span>
+          </div>
+        </div>
+        <div id="vitals-list">
+          <div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No readings logged yet.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- SETTINGS TAB -->
     <div class="tab-panel" id="tab-settings">
       <div class="settings-section">
@@ -523,6 +571,9 @@ body {
     </button>
     <button class="nav-item" onclick="switchTab('symptoms',this)">
       <span class="ni">🩺</span>Symptoms
+    </button>
+    <button class="nav-item" onclick="switchTab('vitals',this)">
+      <span class="ni">🩸</span>Vitals
     </button>
     <button class="nav-item" onclick="switchTab('settings',this)">
       <span class="ni">⚙️</span>Settings
@@ -610,6 +661,35 @@ body {
       <input type="text" id="symptom-notes" placeholder="Any other details...">
     </div>
     <button class="btn btn-danger" onclick="saveSymptoms()">Log This Episode</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- VITALS MODAL -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="vitals-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('vitals-modal')">✕</button>
+    <div class="modal-title">Log Blood Pressure</div>
+    <div class="bp-input-row" style="margin-bottom:14px;">
+      <div class="form-group">
+        <label>Systolic</label>
+        <input type="number" id="bp-systolic" placeholder="120" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label>Diastolic</label>
+        <input type="number" id="bp-diastolic" placeholder="80" inputmode="numeric">
+      </div>
+      <div class="form-group">
+        <label>Pulse</label>
+        <input type="number" id="bp-pulse" placeholder="70" inputmode="numeric">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input type="text" id="bp-notes" placeholder="e.g. after coffee, felt dizzy">
+    </div>
+    <button class="btn btn-primary" onclick="saveVitals()">Save Reading</button>
   </div>
 </div>
 
@@ -958,6 +1038,156 @@ async function loadSymptomHistory() {
 }
 
 // ══════════════════════════════════════════════
+// VITALS (BLOOD PRESSURE)
+// ══════════════════════════════════════════════
+function openVitalsModal() {
+  document.getElementById('bp-systolic').value = '';
+  document.getElementById('bp-diastolic').value = '';
+  document.getElementById('bp-pulse').value = '';
+  document.getElementById('bp-notes').value = '';
+  document.getElementById('vitals-modal').classList.add('open');
+}
+
+function bpTag(sys, dia) {
+  if (sys >= 140 || dia >= 90) return 'high';
+  if (sys >= 120 || dia >= 80) return 'elevated';
+  return 'normal';
+}
+
+async function saveVitals() {
+  const systolic = parseInt(document.getElementById('bp-systolic').value);
+  const diastolic = parseInt(document.getElementById('bp-diastolic').value);
+  const pulse = parseInt(document.getElementById('bp-pulse').value) || null;
+  const notes = document.getElementById('bp-notes').value.trim();
+
+  if (!systolic || !diastolic) { showToast('Enter systolic and diastolic', true); return; }
+
+  const { error } = await sb.from('vitals_logs').insert({
+    user_id: currentUser.id,
+    reading_type: 'blood_pressure',
+    systolic, diastolic, pulse, notes,
+    logged_at: new Date().toISOString()
+  });
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('✓ Reading logged');
+  closeModal('vitals-modal');
+  await loadVitalsHistory();
+}
+
+async function loadVitalsHistory() {
+  const { data } = await sb.from('vitals_logs')
+    .select('*').eq('user_id', currentUser.id)
+    .order('logged_at', { ascending: false }).limit(30);
+
+  const container = document.getElementById('vitals-list');
+  renderVitalsChart(data || []);
+
+  if (!data?.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No readings logged yet.</div>';
+    return;
+  }
+  container.innerHTML = data.map(v => {
+    const tag = bpTag(v.systolic, v.diastolic);
+    const tagLabel = tag === 'high' ? 'High' : tag === 'elevated' ? 'Elevated' : 'Normal';
+    return `<div class="vitals-card" onclick="openEditVitalsLog('${v.id}')">
+      <div class="vitals-tag ${tag}">${tagLabel}</div>
+      <div class="vitals-meta">
+        <div class="vitals-reading">${v.systolic}/${v.diastolic}${v.pulse ? ' · ' + v.pulse + 'bpm' : ''}</div>
+        ${v.notes ? `<div class="vitals-notes">${v.notes}</div>` : ''}
+      </div>
+      <div class="vitals-time">${formatDate(v.logged_at)}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderVitalsChart(data) {
+  const svg = document.getElementById('vitals-chart');
+  if (!data.length) {
+    svg.innerHTML = '<text x="160" y="70" text-anchor="middle" fill="var(--txt3)" font-size="12">No data yet</text>';
+    return;
+  }
+  const points = data.slice(0, 14).reverse();
+  const w = 320, h = 140, padX = 24, padY = 16;
+  const maxV = Math.max(180, ...points.map(p => p.systolic)) + 10;
+  const minV = Math.min(50, ...points.map(p => p.diastolic)) - 10;
+  const xStep = points.length > 1 ? (w - padX * 2) / (points.length - 1) : 0;
+  const yPos = v => h - padY - ((v - minV) / (maxV - minV)) * (h - padY * 2);
+
+  const sysPts = points.map((p, i) => `${padX + i * xStep},${yPos(p.systolic)}`).join(' ');
+  const diaPts = points.map((p, i) => `${padX + i * xStep},${yPos(p.diastolic)}`).join(' ');
+
+  const dots = (pts, color) => points.map((p, i) => {
+    const v = color === 'var(--red)' ? p.systolic : p.diastolic;
+    return `<circle cx="${padX + i * xStep}" cy="${yPos(v)}" r="3" fill="${color}"></circle>`;
+  }).join('');
+
+  svg.innerHTML = `
+    <polyline points="${sysPts}" fill="none" stroke="var(--red)" stroke-width="2"></polyline>
+    <polyline points="${diaPts}" fill="none" stroke="var(--blue)" stroke-width="2"></polyline>
+    ${dots(sysPts, 'var(--red)')}
+    ${dots(diaPts, 'var(--blue)')}
+  `;
+}
+
+async function openEditVitalsLog(logId) {
+  const { data: log } = await sb.from('vitals_logs').select('*').eq('id', logId).single();
+  if (!log) return;
+
+  editingLogId = logId;
+  editingLogType = 'vitals';
+
+  const localDt = toLocalInputValue(log.logged_at);
+  document.getElementById('edit-log-title').textContent = 'Edit: Blood Pressure';
+  document.getElementById('edit-log-body').innerHTML = `
+    <div class="bp-input-row" style="margin-bottom:14px;">
+      <div class="form-group">
+        <label>Systolic</label>
+        <input type="number" id="edit-bp-systolic" value="${log.systolic}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+      </div>
+      <div class="form-group">
+        <label>Diastolic</label>
+        <input type="number" id="edit-bp-diastolic" value="${log.diastolic}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+      </div>
+      <div class="form-group">
+        <label>Pulse</label>
+        <input type="number" id="edit-bp-pulse" value="${log.pulse || ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="edit-bp-notes" value="${log.notes ? log.notes.replace(/"/g, '&quot;') : ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>
+    <div class="form-group">
+      <label>Time</label>
+      <input type="datetime-local" id="edit-bp-time" value="${localDt}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>`;
+
+  document.getElementById('edit-log-save-btn').onclick = saveEditVitalsLog;
+  document.getElementById('edit-log-delete-btn').onclick = deleteEditLog;
+  document.getElementById('edit-log-modal').classList.add('open');
+}
+
+async function saveEditVitalsLog() {
+  const systolic = parseInt(document.getElementById('edit-bp-systolic').value);
+  const diastolic = parseInt(document.getElementById('edit-bp-diastolic').value);
+  const pulse = parseInt(document.getElementById('edit-bp-pulse').value) || null;
+  const notes = document.getElementById('edit-bp-notes').value.trim();
+  const timeVal = document.getElementById('edit-bp-time').value;
+  if (!timeVal || !systolic || !diastolic) { showToast('Fill in systolic, diastolic, and time', true); return; }
+
+  const logged_at = new Date(timeVal).toISOString();
+  const { error } = await sb.from('vitals_logs')
+    .update({ systolic, diastolic, pulse, notes, logged_at })
+    .eq('id', editingLogId);
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('✓ Entry updated');
+  closeModal('edit-log-modal');
+  await loadVitalsHistory();
+}
+
+// ══════════════════════════════════════════════
 // SHARE KEY
 // ══════════════════════════════════════════════
 async function generateShareKey() {
@@ -989,6 +1219,7 @@ function switchTab(name, el) {
   el.classList.add('active');
   if (name === 'history') loadHistoryTab();
   if (name === 'symptoms') loadSymptomHistory();
+  if (name === 'vitals') loadVitalsHistory();
 }
 
 async function loadHistoryTab() {
@@ -1127,7 +1358,7 @@ async function saveEditSymptomLog() {
 
 async function deleteEditLog() {
   if (!confirm('Delete this entry? This cannot be undone.')) return;
-  const table = editingLogType === 'pill' ? 'pill_logs' : 'symptom_logs';
+  const table = editingLogType === 'pill' ? 'pill_logs' : editingLogType === 'vitals' ? 'vitals_logs' : 'symptom_logs';
   const { error } = await sb.from(table).delete().eq('id', editingLogId);
 
   if (error) { showToast('Error: ' + error.message, true); return; }
@@ -1139,6 +1370,8 @@ async function deleteEditLog() {
     renderPillList();
     renderTodayLog();
     if (document.getElementById('tab-history').classList.contains('active')) loadHistoryTab();
+  } else if (editingLogType === 'vitals') {
+    await loadVitalsHistory();
   } else {
     await loadSymptomHistory();
   }
