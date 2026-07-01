@@ -318,6 +318,27 @@ body {
 }
 .vt-chip.active { background: var(--blue-glow); border-color: var(--blue); color: var(--blue); }
 
+/* ── FOOD ── */
+.food-card {
+  background: var(--card); border: 1px solid var(--bdr);
+  border-radius: var(--radius); padding: 14px; margin-bottom: 8px;
+  cursor: pointer;
+}
+.food-card-top { display: flex; align-items: flex-start; gap: 12px; }
+.food-desc { font-size: 15px; font-weight: 600; flex: 1; }
+.food-time { font-size: 11px; color: var(--txt3); flex-shrink: 0; }
+.food-notes { font-size: 12px; color: var(--txt2); margin-top: 4px; }
+.trigger-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.trigger-chip {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .03em; padding: 3px 8px; border-radius: 99px;
+  background: rgba(210,153,34,0.15); color: var(--amber);
+}
+.food-photo-preview {
+  width: 100%; max-height: 180px; object-fit: cover;
+  border-radius: 8px; margin-top: 10px; display: block;
+}
+
 @media(min-width:500px){
   .modal-overlay { align-items: center; padding: 20px; }
   .modal { border-radius: 16px; }
@@ -518,6 +539,19 @@ body {
       </div>
     </div>
 
+    <!-- FOOD TAB -->
+    <div class="tab-panel" id="tab-food">
+      <div class="section">
+        <div class="section-head">
+          <h2>Food Log</h2>
+          <button class="btn btn-ghost btn-sm" onclick="openFoodModal()">+ Log Food</button>
+        </div>
+        <div id="food-list">
+          <div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No food logged yet.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- SETTINGS TAB -->
     <div class="tab-panel" id="tab-settings">
       <div class="settings-section">
@@ -589,6 +623,9 @@ body {
     </button>
     <button class="nav-item" onclick="switchTab('vitals',this)">
       <span class="ni">🩸</span>Vitals
+    </button>
+    <button class="nav-item" onclick="switchTab('food',this)">
+      <span class="ni">🍽️</span>Food
     </button>
     <button class="nav-item" onclick="switchTab('settings',this)">
       <span class="ni">⚙️</span>Settings
@@ -692,6 +729,25 @@ body {
       <input type="text" id="vitals-notes" placeholder="e.g. after coffee, felt dizzy">
     </div>
     <button class="btn btn-primary" onclick="saveVitals()">Save Reading</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- FOOD MODAL -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="food-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('food-modal')">✕</button>
+    <div class="modal-title">Log Food</div>
+    <div class="form-group">
+      <label>What did you eat?</label>
+      <input type="text" id="food-desc" placeholder="e.g. Chicken salad with ranch">
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <input type="text" id="food-notes" placeholder="e.g. ate quickly, felt fine after">
+    </div>
+    <button class="btn btn-primary" onclick="saveFood()">Save Entry</button>
   </div>
 </div>
 
@@ -1330,6 +1386,97 @@ async function saveEditVitalsLog() {
 }
 
 // ══════════════════════════════════════════════
+// FOOD LOG
+// ══════════════════════════════════════════════
+function openFoodModal() {
+  document.getElementById('food-desc').value = '';
+  document.getElementById('food-notes').value = '';
+  document.getElementById('food-modal').classList.add('open');
+}
+
+async function saveFood() {
+  const description = document.getElementById('food-desc').value.trim();
+  const notes = document.getElementById('food-notes').value.trim();
+  if (!description) { showToast('Enter what you ate', true); return; }
+
+  const { error } = await sb.from('food_logs').insert({
+    user_id: currentUser.id,
+    description, notes,
+    logged_at: new Date().toISOString()
+  });
+
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('✓ Food logged');
+  closeModal('food-modal');
+  await loadFoodHistory();
+}
+
+async function loadFoodHistory() {
+  const { data } = await sb.from('food_logs')
+    .select('*').eq('user_id', currentUser.id)
+    .order('logged_at', { ascending: false }).limit(30);
+
+  const container = document.getElementById('food-list');
+  if (!data?.length) {
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No food logged yet.</div>';
+    return;
+  }
+  container.innerHTML = data.map(f => {
+    const triggers = (f.trigger_flags || []).map(t => `<span class="trigger-chip">${t}</span>`).join('');
+    return `<div class="food-card" onclick="openEditFoodLog('${f.id}')">
+      <div class="food-card-top">
+        <div class="food-desc">${f.description}</div>
+        <div class="food-time">${formatDate(f.logged_at)}</div>
+      </div>
+      ${f.notes ? `<div class="food-notes">${f.notes}</div>` : ''}
+      ${triggers ? `<div class="trigger-chips">${triggers}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+async function openEditFoodLog(logId) {
+  const { data: log } = await sb.from('food_logs').select('*').eq('id', logId).single();
+  if (!log) return;
+
+  editingLogId = logId;
+  editingLogType = 'food';
+
+  const localDt = toLocalInputValue(log.logged_at);
+  document.getElementById('edit-log-title').textContent = 'Edit: Food Entry';
+  document.getElementById('edit-log-body').innerHTML = `
+    <div class="form-group">
+      <label>What did you eat?</label>
+      <input type="text" id="edit-food-desc" value="${log.description ? log.description.replace(/"/g, '&quot;') : ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="edit-food-notes" value="${log.notes ? log.notes.replace(/"/g, '&quot;') : ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>
+    <div class="form-group">
+      <label>Time</label>
+      <input type="datetime-local" id="edit-food-time" value="${localDt}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>`;
+
+  document.getElementById('edit-log-save-btn').onclick = saveEditFoodLog;
+  document.getElementById('edit-log-delete-btn').onclick = deleteEditLog;
+  document.getElementById('edit-log-modal').classList.add('open');
+}
+
+async function saveEditFoodLog() {
+  const description = document.getElementById('edit-food-desc').value.trim();
+  const notes = document.getElementById('edit-food-notes').value.trim();
+  const timeVal = document.getElementById('edit-food-time').value;
+  if (!timeVal || !description) { showToast('Enter a description and time', true); return; }
+
+  const logged_at = new Date(timeVal).toISOString();
+  const { error } = await sb.from('food_logs').update({ description, notes, logged_at }).eq('id', editingLogId);
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  showToast('✓ Entry updated');
+  closeModal('edit-log-modal');
+  await loadFoodHistory();
+}
+
+// ══════════════════════════════════════════════
 // SHARE KEY
 // ══════════════════════════════════════════════
 async function generateShareKey() {
@@ -1370,6 +1517,7 @@ function switchTab(name, el) {
   if (name === 'history') loadHistoryTab();
   if (name === 'symptoms') loadSymptomHistory();
   if (name === 'vitals') { renderVitalsTypeChips(); loadVitalsHistory(); }
+  if (name === 'food') loadFoodHistory();
 }
 
 async function loadHistoryTab() {
@@ -1508,7 +1656,7 @@ async function saveEditSymptomLog() {
 
 async function deleteEditLog() {
   if (!confirm('Delete this entry? This cannot be undone.')) return;
-  const table = editingLogType === 'pill' ? 'pill_logs' : editingLogType === 'vitals' ? 'vitals_logs' : 'symptom_logs';
+  const table = editingLogType === 'pill' ? 'pill_logs' : editingLogType === 'vitals' ? 'vitals_logs' : editingLogType === 'food' ? 'food_logs' : 'symptom_logs';
   const { error } = await sb.from(table).delete().eq('id', editingLogId);
 
   if (error) { showToast('Error: ' + error.message, true); return; }
@@ -1522,6 +1670,8 @@ async function deleteEditLog() {
     if (document.getElementById('tab-history').classList.contains('active')) loadHistoryTab();
   } else if (editingLogType === 'vitals') {
     await loadVitalsHistory();
+  } else if (editingLogType === 'food') {
+    await loadFoodHistory();
   } else {
     await loadSymptomHistory();
   }
