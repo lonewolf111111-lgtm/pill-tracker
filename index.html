@@ -1028,21 +1028,52 @@ function renderPillList() {
 
   container.innerHTML = '';
   medications.forEach(med => {
+    const card = document.createElement('div');
+
+    if (med.as_needed) {
+      const doses = todayLogs.filter(l => l.medication_id === med.id);
+      const count = doses.length;
+      const lastTaken = doses[0]; // todayLogs is ordered newest-first
+      card.className = 'pill-card' + (count > 0 ? ' taken' : '');
+      card.innerHTML = `
+        <div class="pill-check" onclick="logAsNeededDose('${med.id}','${med.name.replace(/'/g, "\\'")}')" style="cursor:pointer;">+</div>
+        <div class="pill-info">
+          <div class="pill-name">${med.name}</div>
+          <div class="pill-meta">${med.dosage || ''} · As needed</div>
+        </div>
+        <div class="pill-time ${count > 0 ? 'taken-time' : ''}">
+          ${count > 0 ? count + 'x today · last ' + formatTime(lastTaken.taken_at) : 'Tap + to log a dose'}
+        </div>`;
+      container.appendChild(card);
+      return;
+    }
+
     const log = todayLogs.find(l => l.medication_id === med.id);
     const taken = !!log;
-    const card = document.createElement('div');
     card.className = 'pill-card' + (taken ? ' taken' : '');
     card.innerHTML = `
       <div class="pill-check" onclick="togglePill('${med.id}','${med.name}')">${taken ? '✓' : ''}</div>
       <div class="pill-info">
         <div class="pill-name">${med.name}</div>
-        <div class="pill-meta">${med.dosage || ''} ${med.as_needed ? '· As needed' : '· Daily'}</div>
+        <div class="pill-meta">${med.dosage || ''} · Daily</div>
       </div>
       <div class="pill-time ${taken ? 'taken-time' : ''}">
         ${taken ? '✓ ' + formatTime(log.taken_at) : med.schedule_time || ''}
       </div>`;
     container.appendChild(card);
   });
+}
+
+async function logAsNeededDose(medId, medName) {
+  await sb.from('pill_logs').insert({
+    user_id: currentUser.id,
+    medication_id: medId,
+    taken_at: new Date().toISOString()
+  });
+  showToast('✓ ' + medName + ' dose logged');
+  await loadTodayLogs();
+  renderPillList();
+  renderTodayLog();
 }
 
 async function togglePill(medId, medName) {
