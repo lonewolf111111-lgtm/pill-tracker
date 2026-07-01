@@ -305,6 +305,18 @@ body {
 .chart-legend { display: flex; gap: 16px; font-size: 11px; color: var(--txt2); margin-top: 8px; justify-content: center; }
 .chart-legend span { display: flex; align-items: center; gap: 5px; }
 .chart-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.vitals-type-row {
+  display: flex; gap: 8px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.vitals-type-row::-webkit-scrollbar { display: none; }
+.vt-chip {
+  flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+  background: var(--card); border: 1px solid var(--bdr); border-radius: 99px;
+  padding: 8px 14px; font-size: 13px; font-weight: 600; color: var(--txt2);
+  cursor: pointer; white-space: nowrap; transition: all .15s;
+}
+.vt-chip.active { background: var(--blue-glow); border-color: var(--blue); color: var(--blue); }
 
 @media(min-width:500px){
   .modal-overlay { align-items: center; padding: 20px; }
@@ -488,13 +500,14 @@ body {
     <!-- VITALS TAB -->
     <div class="tab-panel" id="tab-vitals">
       <div class="section">
+        <div class="vitals-type-row" id="vitals-type-row"></div>
         <div class="section-head">
-          <h2>Blood Pressure</h2>
-          <button class="btn btn-ghost btn-sm" onclick="openVitalsModal()">+ Log BP</button>
+          <h2 id="vitals-heading">Blood Pressure</h2>
+          <button class="btn btn-ghost btn-sm" id="vitals-log-btn" onclick="openVitalsModal()">+ Log</button>
         </div>
         <div class="chart-box">
           <svg id="vitals-chart" viewBox="0 0 320 140" style="width:100%;height:140px;"></svg>
-          <div class="chart-legend">
+          <div class="chart-legend" id="vitals-legend">
             <span><span class="chart-dot" style="background:var(--red);"></span>Systolic</span>
             <span><span class="chart-dot" style="background:var(--blue);"></span>Diastolic</span>
           </div>
@@ -670,24 +683,11 @@ body {
 <div class="modal-overlay" id="vitals-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('vitals-modal')">✕</button>
-    <div class="modal-title">Log Blood Pressure</div>
-    <div class="bp-input-row" style="margin-bottom:14px;">
-      <div class="form-group">
-        <label>Systolic</label>
-        <input type="number" id="bp-systolic" placeholder="120" inputmode="numeric">
-      </div>
-      <div class="form-group">
-        <label>Diastolic</label>
-        <input type="number" id="bp-diastolic" placeholder="80" inputmode="numeric">
-      </div>
-      <div class="form-group">
-        <label>Pulse</label>
-        <input type="number" id="bp-pulse" placeholder="70" inputmode="numeric">
-      </div>
-    </div>
-    <div class="form-group">
+    <div class="modal-title" id="vitals-modal-title">Log Blood Pressure</div>
+    <div id="vitals-modal-body"></div>
+    <div class="form-group" style="margin-top:14px;">
       <label>Notes (optional)</label>
-      <input type="text" id="bp-notes" placeholder="e.g. after coffee, felt dizzy">
+      <input type="text" id="vitals-notes" placeholder="e.g. after coffee, felt dizzy">
     </div>
     <button class="btn btn-primary" onclick="saveVitals()">Save Reading</button>
   </div>
@@ -1038,13 +1038,76 @@ async function loadSymptomHistory() {
 }
 
 // ══════════════════════════════════════════════
-// VITALS (BLOOD PRESSURE)
+// VITALS (FLEXIBLE READING TYPES)
 // ══════════════════════════════════════════════
+const VITAL_TYPES = {
+  blood_pressure: {
+    label: 'Blood Pressure', icon: '🩸', unit: 'mmHg', mode: 'bp',
+    tag: log => bpTag(log.systolic, log.diastolic)
+  },
+  blood_sugar: {
+    label: 'Blood Sugar', icon: '🍬', unit: 'mg/dL', mode: 'single',
+    tag: log => log.value >= 126 ? 'high' : log.value >= 100 ? 'elevated' : 'normal'
+  },
+  weight: {
+    label: 'Weight', icon: '⚖️', unit: 'lb', mode: 'single',
+    tag: null
+  },
+  temperature: {
+    label: 'Temperature', icon: '🌡️', unit: '°F', mode: 'single',
+    tag: log => log.value >= 100.4 ? 'high' : log.value >= 99 ? 'elevated' : 'normal'
+  },
+  oxygen: {
+    label: 'Oxygen (O2)', icon: '🫁', unit: '%', mode: 'single',
+    tag: log => log.value < 90 ? 'high' : log.value < 95 ? 'elevated' : 'normal',
+    tagLabel: tag => tag === 'high' ? 'Low' : tag === 'elevated' ? 'Borderline' : 'Normal'
+  },
+  heart_rate: {
+    label: 'Heart Rate', icon: '💓', unit: 'bpm', mode: 'single',
+    tag: log => (log.value > 120 || log.value < 50) ? 'high' : (log.value > 100 || log.value < 60) ? 'elevated' : 'normal'
+  }
+};
+let currentVitalsType = 'blood_pressure';
+
+function renderVitalsTypeChips() {
+  const row = document.getElementById('vitals-type-row');
+  row.innerHTML = Object.entries(VITAL_TYPES).map(([key, cfg]) =>
+    `<div class="vt-chip ${key === currentVitalsType ? 'active' : ''}" onclick="selectVitalsType('${key}')">
+      <span>${cfg.icon}</span>${cfg.label}
+    </div>`).join('');
+}
+
+function selectVitalsType(type) {
+  currentVitalsType = type;
+  renderVitalsTypeChips();
+  const cfg = VITAL_TYPES[type];
+  document.getElementById('vitals-heading').textContent = cfg.label;
+  document.getElementById('vitals-log-btn').textContent = '+ Log';
+  document.getElementById('vitals-legend').innerHTML = cfg.mode === 'bp'
+    ? `<span><span class="chart-dot" style="background:var(--red);"></span>Systolic</span><span><span class="chart-dot" style="background:var(--blue);"></span>Diastolic</span>`
+    : `<span><span class="chart-dot" style="background:var(--blue);"></span>${cfg.label} (${cfg.unit})</span>`;
+  loadVitalsHistory();
+}
+
 function openVitalsModal() {
-  document.getElementById('bp-systolic').value = '';
-  document.getElementById('bp-diastolic').value = '';
-  document.getElementById('bp-pulse').value = '';
-  document.getElementById('bp-notes').value = '';
+  const cfg = VITAL_TYPES[currentVitalsType];
+  document.getElementById('vitals-modal-title').textContent = 'Log ' + cfg.label;
+  document.getElementById('vitals-notes').value = '';
+  const body = document.getElementById('vitals-modal-body');
+  if (cfg.mode === 'bp') {
+    body.innerHTML = `
+      <div class="bp-input-row">
+        <div class="form-group"><label>Systolic</label><input type="number" id="v-systolic" placeholder="120" inputmode="numeric"></div>
+        <div class="form-group"><label>Diastolic</label><input type="number" id="v-diastolic" placeholder="80" inputmode="numeric"></div>
+        <div class="form-group"><label>Pulse</label><input type="number" id="v-pulse" placeholder="70" inputmode="numeric"></div>
+      </div>`;
+  } else {
+    body.innerHTML = `
+      <div class="form-group">
+        <label>${cfg.label} (${cfg.unit})</label>
+        <input type="number" id="v-value" step="0.1" placeholder="e.g. ${cfg.unit === '%' ? '98' : cfg.unit === 'lb' ? '180' : '100'}" inputmode="decimal">
+      </div>`;
+  }
   document.getElementById('vitals-modal').classList.add('open');
 }
 
@@ -1054,21 +1117,29 @@ function bpTag(sys, dia) {
   return 'normal';
 }
 
+function tagLabelFor(cfg, tag) {
+  if (!tag) return '';
+  return cfg.tagLabel ? cfg.tagLabel(tag) : (tag === 'high' ? 'High' : tag === 'elevated' ? 'Elevated' : 'Normal');
+}
+
 async function saveVitals() {
-  const systolic = parseInt(document.getElementById('bp-systolic').value);
-  const diastolic = parseInt(document.getElementById('bp-diastolic').value);
-  const pulse = parseInt(document.getElementById('bp-pulse').value) || null;
-  const notes = document.getElementById('bp-notes').value.trim();
+  const cfg = VITAL_TYPES[currentVitalsType];
+  const notes = document.getElementById('vitals-notes').value.trim();
+  let row = { user_id: currentUser.id, reading_type: currentVitalsType, notes, logged_at: new Date().toISOString() };
 
-  if (!systolic || !diastolic) { showToast('Enter systolic and diastolic', true); return; }
+  if (cfg.mode === 'bp') {
+    const systolic = parseInt(document.getElementById('v-systolic').value);
+    const diastolic = parseInt(document.getElementById('v-diastolic').value);
+    const pulse = parseInt(document.getElementById('v-pulse').value) || null;
+    if (!systolic || !diastolic) { showToast('Enter systolic and diastolic', true); return; }
+    Object.assign(row, { systolic, diastolic, pulse });
+  } else {
+    const value = parseFloat(document.getElementById('v-value').value);
+    if (isNaN(value)) { showToast('Enter a value', true); return; }
+    row.value = value;
+  }
 
-  const { error } = await sb.from('vitals_logs').insert({
-    user_id: currentUser.id,
-    reading_type: 'blood_pressure',
-    systolic, diastolic, pulse, notes,
-    logged_at: new Date().toISOString()
-  });
-
+  const { error } = await sb.from('vitals_logs').insert(row);
   if (error) { showToast('Error: ' + error.message, true); return; }
   showToast('✓ Reading logged');
   closeModal('vitals-modal');
@@ -1076,24 +1147,28 @@ async function saveVitals() {
 }
 
 async function loadVitalsHistory() {
+  const cfg = VITAL_TYPES[currentVitalsType];
   const { data } = await sb.from('vitals_logs')
-    .select('*').eq('user_id', currentUser.id)
+    .select('*').eq('user_id', currentUser.id).eq('reading_type', currentVitalsType)
     .order('logged_at', { ascending: false }).limit(30);
 
   const container = document.getElementById('vitals-list');
-  renderVitalsChart(data || []);
+  renderVitalsChart(data || [], cfg);
 
   if (!data?.length) {
     container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No readings logged yet.</div>';
     return;
   }
   container.innerHTML = data.map(v => {
-    const tag = bpTag(v.systolic, v.diastolic);
-    const tagLabel = tag === 'high' ? 'High' : tag === 'elevated' ? 'Elevated' : 'Normal';
+    const tag = cfg.tag ? cfg.tag(v) : null;
+    const tagHtml = tag ? `<div class="vitals-tag ${tag}">${tagLabelFor(cfg, tag)}</div>` : '';
+    const reading = cfg.mode === 'bp'
+      ? `${v.systolic}/${v.diastolic}${v.pulse ? ' · ' + v.pulse + 'bpm' : ''}`
+      : `${v.value}${cfg.unit === '%' || cfg.unit === '°F' ? cfg.unit : ' ' + cfg.unit}`;
     return `<div class="vitals-card" onclick="openEditVitalsLog('${v.id}')">
-      <div class="vitals-tag ${tag}">${tagLabel}</div>
+      ${tagHtml}
       <div class="vitals-meta">
-        <div class="vitals-reading">${v.systolic}/${v.diastolic}${v.pulse ? ' · ' + v.pulse + 'bpm' : ''}</div>
+        <div class="vitals-reading">${reading}</div>
         ${v.notes ? `<div class="vitals-notes">${v.notes}</div>` : ''}
       </div>
       <div class="vitals-time">${formatDate(v.logged_at)}</div>
@@ -1101,7 +1176,7 @@ async function loadVitalsHistory() {
   }).join('');
 }
 
-function renderVitalsChart(data) {
+function renderVitalsChart(data, cfg) {
   const svg = document.getElementById('vitals-chart');
   if (!data.length) {
     svg.innerHTML = '<text x="160" y="70" text-anchor="middle" fill="var(--txt3)" font-size="12">No data yet</text>';
@@ -1109,26 +1184,35 @@ function renderVitalsChart(data) {
   }
   const points = data.slice(0, 14).reverse();
   const w = 320, h = 140, padX = 24, padY = 16;
-  const maxV = Math.max(180, ...points.map(p => p.systolic)) + 10;
-  const minV = Math.min(50, ...points.map(p => p.diastolic)) - 10;
-  const xStep = points.length > 1 ? (w - padX * 2) / (points.length - 1) : 0;
-  const yPos = v => h - padY - ((v - minV) / (maxV - minV)) * (h - padY * 2);
 
-  const sysPts = points.map((p, i) => `${padX + i * xStep},${yPos(p.systolic)}`).join(' ');
-  const diaPts = points.map((p, i) => `${padX + i * xStep},${yPos(p.diastolic)}`).join(' ');
-
-  const dots = (pts, color) => points.map((p, i) => {
-    const v = color === 'var(--red)' ? p.systolic : p.diastolic;
-    return `<circle cx="${padX + i * xStep}" cy="${yPos(v)}" r="3" fill="${color}"></circle>`;
-  }).join('');
-
-  svg.innerHTML = `
-    <polyline points="${sysPts}" fill="none" stroke="var(--red)" stroke-width="2"></polyline>
-    <polyline points="${diaPts}" fill="none" stroke="var(--blue)" stroke-width="2"></polyline>
-    ${dots(sysPts, 'var(--red)')}
-    ${dots(diaPts, 'var(--blue)')}
-  `;
+  if (cfg.mode === 'bp') {
+    const maxV = Math.max(180, ...points.map(p => p.systolic)) + 10;
+    const minV = Math.min(50, ...points.map(p => p.diastolic)) - 10;
+    const xStep = points.length > 1 ? (w - padX * 2) / (points.length - 1) : 0;
+    const yPos = v => h - padY - ((v - minV) / (maxV - minV)) * (h - padY * 2);
+    const sysPts = points.map((p, i) => `${padX + i * xStep},${yPos(p.systolic)}`).join(' ');
+    const diaPts = points.map((p, i) => `${padX + i * xStep},${yPos(p.diastolic)}`).join(' ');
+    const dots = (accessor, color) => points.map((p, i) =>
+      `<circle cx="${padX + i * xStep}" cy="${yPos(accessor(p))}" r="3" fill="${color}"></circle>`).join('');
+    svg.innerHTML = `
+      <polyline points="${sysPts}" fill="none" stroke="var(--red)" stroke-width="2"></polyline>
+      <polyline points="${diaPts}" fill="none" stroke="var(--blue)" stroke-width="2"></polyline>
+      ${dots(p => p.systolic, 'var(--red)')}
+      ${dots(p => p.diastolic, 'var(--blue)')}
+    `;
+  } else {
+    const vals = points.map(p => p.value);
+    const maxV = Math.max(...vals) + Math.max(1, (Math.max(...vals) - Math.min(...vals)) * 0.2);
+    const minV = Math.min(...vals) - Math.max(1, (Math.max(...vals) - Math.min(...vals)) * 0.2);
+    const xStep = points.length > 1 ? (w - padX * 2) / (points.length - 1) : 0;
+    const yPos = v => h - padY - ((v - minV) / (maxV - minV || 1)) * (h - padY * 2);
+    const pts = points.map((p, i) => `${padX + i * xStep},${yPos(p.value)}`).join(' ');
+    const dots = points.map((p, i) => `<circle cx="${padX + i * xStep}" cy="${yPos(p.value)}" r="3" fill="var(--blue)"></circle>`).join('');
+    svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="var(--blue)" stroke-width="2"></polyline>${dots}`;
+  }
 }
+
+let editingVitalsType = null;
 
 async function openEditVitalsLog(logId) {
   const { data: log } = await sb.from('vitals_logs').select('*').eq('id', logId).single();
@@ -1136,31 +1220,31 @@ async function openEditVitalsLog(logId) {
 
   editingLogId = logId;
   editingLogType = 'vitals';
+  editingVitalsType = log.reading_type;
+  const cfg = VITAL_TYPES[log.reading_type] || VITAL_TYPES.blood_pressure;
 
   const localDt = toLocalInputValue(log.logged_at);
-  document.getElementById('edit-log-title').textContent = 'Edit: Blood Pressure';
-  document.getElementById('edit-log-body').innerHTML = `
+  document.getElementById('edit-log-title').textContent = 'Edit: ' + cfg.label;
+
+  const fieldsHtml = cfg.mode === 'bp' ? `
     <div class="bp-input-row" style="margin-bottom:14px;">
-      <div class="form-group">
-        <label>Systolic</label>
-        <input type="number" id="edit-bp-systolic" value="${log.systolic}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
-      </div>
-      <div class="form-group">
-        <label>Diastolic</label>
-        <input type="number" id="edit-bp-diastolic" value="${log.diastolic}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
-      </div>
-      <div class="form-group">
-        <label>Pulse</label>
-        <input type="number" id="edit-bp-pulse" value="${log.pulse || ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
-      </div>
-    </div>
+      <div class="form-group"><label>Systolic</label><input type="number" id="edit-v-systolic" value="${log.systolic}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;"></div>
+      <div class="form-group"><label>Diastolic</label><input type="number" id="edit-v-diastolic" value="${log.diastolic}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;"></div>
+      <div class="form-group"><label>Pulse</label><input type="number" id="edit-v-pulse" value="${log.pulse || ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;"></div>
+    </div>` : `
+    <div class="form-group" style="margin-bottom:14px;">
+      <label>${cfg.label} (${cfg.unit})</label>
+      <input type="number" step="0.1" id="edit-v-value" value="${log.value}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+    </div>`;
+
+  document.getElementById('edit-log-body').innerHTML = fieldsHtml + `
     <div class="form-group">
       <label>Notes</label>
-      <input type="text" id="edit-bp-notes" value="${log.notes ? log.notes.replace(/"/g, '&quot;') : ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+      <input type="text" id="edit-v-notes" value="${log.notes ? log.notes.replace(/"/g, '&quot;') : ''}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
     </div>
     <div class="form-group">
       <label>Time</label>
-      <input type="datetime-local" id="edit-bp-time" value="${localDt}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
+      <input type="datetime-local" id="edit-v-time" value="${localDt}" style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:11px 13px;font-size:15px;color:var(--txt);width:100%;outline:none;">
     </div>`;
 
   document.getElementById('edit-log-save-btn').onclick = saveEditVitalsLog;
@@ -1169,18 +1253,26 @@ async function openEditVitalsLog(logId) {
 }
 
 async function saveEditVitalsLog() {
-  const systolic = parseInt(document.getElementById('edit-bp-systolic').value);
-  const diastolic = parseInt(document.getElementById('edit-bp-diastolic').value);
-  const pulse = parseInt(document.getElementById('edit-bp-pulse').value) || null;
-  const notes = document.getElementById('edit-bp-notes').value.trim();
-  const timeVal = document.getElementById('edit-bp-time').value;
-  if (!timeVal || !systolic || !diastolic) { showToast('Fill in systolic, diastolic, and time', true); return; }
-
+  const cfg = VITAL_TYPES[editingVitalsType] || VITAL_TYPES.blood_pressure;
+  const notes = document.getElementById('edit-v-notes').value.trim();
+  const timeVal = document.getElementById('edit-v-time').value;
+  if (!timeVal) { showToast('Pick a time', true); return; }
   const logged_at = new Date(timeVal).toISOString();
-  const { error } = await sb.from('vitals_logs')
-    .update({ systolic, diastolic, pulse, notes, logged_at })
-    .eq('id', editingLogId);
 
+  let update = { notes, logged_at };
+  if (cfg.mode === 'bp') {
+    const systolic = parseInt(document.getElementById('edit-v-systolic').value);
+    const diastolic = parseInt(document.getElementById('edit-v-diastolic').value);
+    const pulse = parseInt(document.getElementById('edit-v-pulse').value) || null;
+    if (!systolic || !diastolic) { showToast('Enter systolic and diastolic', true); return; }
+    Object.assign(update, { systolic, diastolic, pulse });
+  } else {
+    const value = parseFloat(document.getElementById('edit-v-value').value);
+    if (isNaN(value)) { showToast('Enter a value', true); return; }
+    update.value = value;
+  }
+
+  const { error } = await sb.from('vitals_logs').update(update).eq('id', editingLogId);
   if (error) { showToast('Error: ' + error.message, true); return; }
   showToast('✓ Entry updated');
   closeModal('edit-log-modal');
@@ -1219,7 +1311,7 @@ function switchTab(name, el) {
   el.classList.add('active');
   if (name === 'history') loadHistoryTab();
   if (name === 'symptoms') loadSymptomHistory();
-  if (name === 'vitals') loadVitalsHistory();
+  if (name === 'vitals') { renderVitalsTypeChips(); loadVitalsHistory(); }
 }
 
 async function loadHistoryTab() {
