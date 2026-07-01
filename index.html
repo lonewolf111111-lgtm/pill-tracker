@@ -743,6 +743,9 @@ body {
       <label>What did you eat?</label>
       <input type="text" id="food-desc" placeholder="e.g. Chicken salad with ranch">
     </div>
+    <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:12px;" onclick="document.getElementById('food-photo-input').click()">📷 Snap Photo Instead</button>
+    <input type="file" id="food-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFoodPhoto(this)">
+    <div id="food-photo-status" style="font-size:12px;margin-bottom:10px;min-height:16px;"></div>
     <div class="form-group">
       <label>Notes (optional)</label>
       <input type="text" id="food-notes" placeholder="e.g. ate quickly, felt fine after">
@@ -1388,10 +1391,49 @@ async function saveEditVitalsLog() {
 // ══════════════════════════════════════════════
 // FOOD LOG
 // ══════════════════════════════════════════════
+let pendingFoodTriggers = [];
+
 function openFoodModal() {
   document.getElementById('food-desc').value = '';
   document.getElementById('food-notes').value = '';
+  document.getElementById('food-photo-status').textContent = '';
+  pendingFoodTriggers = [];
   document.getElementById('food-modal').classList.add('open');
+}
+
+async function handleFoodPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('food-photo-status');
+  status.style.color = 'var(--txt2)';
+  status.textContent = '📷 Reading photo...';
+
+  try {
+    const imageBase64 = await fileToBase64(file);
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/analyze-food-photo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'apikey': SUPABASE_KEY
+      },
+      body: JSON.stringify({ imageBase64, mimeType: file.type })
+    });
+    const data = await res.json();
+    if (data.error || !data.description) throw new Error(data.error || 'Could not identify food');
+
+    document.getElementById('food-desc').value = data.description;
+    pendingFoodTriggers = data.triggers || [];
+    status.style.color = 'var(--green)';
+    status.textContent = pendingFoodTriggers.length
+      ? `✓ Identified — flagged: ${pendingFoodTriggers.join(', ')}`
+      : '✓ Identified — no common triggers spotted';
+  } catch (e) {
+    pendingFoodTriggers = [];
+    status.style.color = 'var(--red)';
+    status.textContent = '⚠ Could not read photo — enter manually';
+  }
+  input.value = '';
 }
 
 async function saveFood() {
@@ -1402,6 +1444,7 @@ async function saveFood() {
   const { error } = await sb.from('food_logs').insert({
     user_id: currentUser.id,
     description, notes,
+    trigger_flags: pendingFoodTriggers.length ? pendingFoodTriggers : null,
     logged_at: new Date().toISOString()
   });
 
