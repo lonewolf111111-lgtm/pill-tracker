@@ -223,6 +223,18 @@ body {
 .severity-row label { display: block; font-size: 12px; color: var(--txt2); margin-bottom: 6px; }
 .severity-row input[type=range] { width: 100%; accent-color: var(--blue); }
 .sev-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--txt3); margin-top: 2px; }
+.bristol-row {
+  display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+}
+.bristol-row::-webkit-scrollbar { display: none; }
+.bristol-btn {
+  flex-shrink: 0; width: 62px; background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: 8px; padding: 8px 4px; text-align: center; cursor: pointer;
+  transition: all .15s; font-size: 16px; font-weight: 700; color: var(--txt2);
+}
+.bristol-btn span { display: block; font-size: 9px; font-weight: 400; margin-top: 2px; line-height: 1.2; }
+.bristol-btn.selected { border-color: var(--amber); background: rgba(210,153,34,0.15); color: var(--txt); }
 
 /* ── TODAY LOG ── */
 .log-item {
@@ -702,6 +714,25 @@ body {
       <div class="sym-btn" onclick="toggleSym(this,'fatigue')" data-sym="fatigue"><span class="si">😴</span>Extreme Fatigue</div>
       <div class="sym-btn" onclick="toggleSym(this,'numb')" data-sym="numb"><span class="si">🦿</span>Numbness / Tingling</div>
       <div class="sym-btn" onclick="toggleSym(this,'vision')" data-sym="vision"><span class="si">👁️</span>Vision Changes</div>
+      <div class="sym-btn" onclick="toggleSym(this,'bloating')" data-sym="bloating"><span class="si">🎈</span>Bloating</div>
+      <div class="sym-btn" onclick="toggleSym(this,'gas')" data-sym="gas"><span class="si">💨</span>Gas</div>
+      <div class="sym-btn" onclick="toggleSym(this,'diarrhea')" data-sym="diarrhea"><span class="si">💩</span>Diarrhea</div>
+      <div class="sym-btn" onclick="toggleSym(this,'constipation')" data-sym="constipation"><span class="si">🚫</span>Constipation</div>
+      <div class="sym-btn" onclick="toggleSym(this,'urgency')" data-sym="urgency"><span class="si">🏃</span>Urgency</div>
+      <div class="sym-btn" onclick="toggleSym(this,'reflux')" data-sym="reflux"><span class="si">🔥</span>Heartburn / Reflux</div>
+      <div class="sym-btn" onclick="toggleSym(this,'blood_stool')" data-sym="blood_stool"><span class="si">🩸</span>Blood in Stool</div>
+    </div>
+    <div class="form-group" id="bristol-section">
+      <label>Bristol Stool Scale <span style="color:var(--txt3);font-weight:400;">(only if relevant)</span></label>
+      <div class="bristol-row" id="bristol-row">
+        <div class="bristol-btn" onclick="selectBristol(this,1)" data-b="1">1<span>Hard lumps</span></div>
+        <div class="bristol-btn" onclick="selectBristol(this,2)" data-b="2">2<span>Lumpy</span></div>
+        <div class="bristol-btn" onclick="selectBristol(this,3)" data-b="3">3<span>Cracked</span></div>
+        <div class="bristol-btn" onclick="selectBristol(this,4)" data-b="4">4<span>Smooth</span></div>
+        <div class="bristol-btn" onclick="selectBristol(this,5)" data-b="5">5<span>Soft blobs</span></div>
+        <div class="bristol-btn" onclick="selectBristol(this,6)" data-b="6">6<span>Mushy</span></div>
+        <div class="bristol-btn" onclick="selectBristol(this,7)" data-b="7">7<span>Liquid</span></div>
+      </div>
     </div>
     <div class="severity-row">
       <label>Severity: <strong id="sev-val">5</strong> / 10</label>
@@ -788,6 +819,7 @@ let medications = [];
 let todayLogs = [];
 let isPanicMode = false;
 let selectedSymptoms = [];
+let selectedBristol = null;
 
 // ══════════════════════════════════════════════
 // INIT
@@ -1042,12 +1074,25 @@ async function removeMed(id, name) {
 function openSymptomModal(isPanic) {
   isPanicMode = isPanic;
   selectedSymptoms = [];
+  selectedBristol = null;
   document.querySelectorAll('.sym-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.bristol-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('severity-slider').value = isPanic ? 8 : 5;
   document.getElementById('sev-val').textContent = isPanic ? '8' : '5';
   document.getElementById('symptom-notes').value = '';
   document.getElementById('symptom-modal-title').textContent = isPanic ? '🚨 What are you feeling?' : 'Log Symptoms';
   document.getElementById('symptom-modal').classList.add('open');
+}
+
+function selectBristol(el, val) {
+  const wasSelected = el.classList.contains('selected');
+  document.querySelectorAll('.bristol-btn').forEach(b => b.classList.remove('selected'));
+  if (wasSelected) {
+    selectedBristol = null;
+  } else {
+    el.classList.add('selected');
+    selectedBristol = val;
+  }
 }
 
 function toggleSym(el, sym) {
@@ -1069,6 +1114,7 @@ async function saveSymptoms() {
     symptoms: selectedSymptoms,
     severity,
     panic_episode: isPanicMode,
+    bristol_scale: selectedBristol,
     notes
   });
 
@@ -1093,7 +1139,7 @@ async function loadSymptomHistory() {
       <div class="log-dot ${log.panic_episode ? 'panic' : 'symptom'}"></div>
       <div class="log-text">
         <strong>${log.panic_episode ? '🚨 Episode' : '🩺 Symptoms'}</strong>
-        · Severity ${log.severity}/10<br>
+        · Severity ${log.severity}/10${log.bristol_scale ? ' · Bristol ' + log.bristol_scale : ''}<br>
         <span style="color:var(--txt2);font-size:12px;">${(log.symptoms || []).join(', ') || 'No symptoms selected'}</span>
         ${log.notes ? '<br><span style="color:var(--txt3);font-size:11px;">' + log.notes + '</span>' : ''}
       </div>
@@ -1672,11 +1718,31 @@ async function openEditSymptomLog(logId) {
       <label>Notes</label>
       <input type="text" id="edit-symptom-notes" value="${log.notes ? log.notes.replace(/"/g, '&quot;') : ''}" placeholder="Any other details...">
     </div>
+    <div class="form-group">
+      <label>Bristol Stool Scale</label>
+      <div class="bristol-row" id="edit-bristol-row">
+        ${[1,2,3,4,5,6,7].map(n => `<div class="bristol-btn ${log.bristol_scale === n ? 'selected' : ''}" onclick="selectEditBristol(this,${n})" data-b="${n}">${n}<span>${['Hard lumps','Lumpy','Cracked','Smooth','Soft blobs','Mushy','Liquid'][n-1]}</span></div>`).join('')}
+      </div>
+    </div>
     <p style="font-size:11px;color:var(--txt2);">Symptoms logged: ${(log.symptoms || []).join(', ') || 'none'} (tap delete and re-log to change symptom selection)</p>`;
 
+  editingBristol = log.bristol_scale || null;
   document.getElementById('edit-log-save-btn').onclick = saveEditSymptomLog;
   document.getElementById('edit-log-delete-btn').onclick = deleteEditLog;
   document.getElementById('edit-log-modal').classList.add('open');
+}
+
+let editingBristol = null;
+
+function selectEditBristol(el, val) {
+  const wasSelected = el.classList.contains('selected');
+  document.querySelectorAll('#edit-bristol-row .bristol-btn').forEach(b => b.classList.remove('selected'));
+  if (wasSelected) {
+    editingBristol = null;
+  } else {
+    el.classList.add('selected');
+    editingBristol = val;
+  }
 }
 
 async function saveEditSymptomLog() {
@@ -1688,7 +1754,7 @@ async function saveEditSymptomLog() {
   const notes = document.getElementById('edit-symptom-notes').value.trim();
 
   const { error } = await sb.from('symptom_logs')
-    .update({ logged_at, severity, notes })
+    .update({ logged_at, severity, notes, bristol_scale: editingBristol })
     .eq('id', editingLogId);
 
   if (error) { showToast('Error: ' + error.message, true); return; }
