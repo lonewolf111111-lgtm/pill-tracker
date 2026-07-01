@@ -1105,7 +1105,10 @@ function openVitalsModal() {
         <div class="form-group"><label>Systolic</label><input type="number" id="v-systolic" placeholder="120" inputmode="numeric"></div>
         <div class="form-group"><label>Diastolic</label><input type="number" id="v-diastolic" placeholder="80" inputmode="numeric"></div>
         <div class="form-group"><label>Pulse</label><input type="number" id="v-pulse" placeholder="70" inputmode="numeric"></div>
-      </div>`;
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;" onclick="document.getElementById('bp-photo-input').click()">📷 Snap Photo Instead</button>
+      <input type="file" id="bp-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleBPPhoto(this)">
+      <div id="bp-photo-status" style="font-size:12px;margin-top:6px;min-height:16px;"></div>`;
   } else {
     body.innerHTML = `
       <div class="form-group">
@@ -1120,6 +1123,48 @@ function bpTag(sys, dia) {
   if (sys >= 140 || dia >= 90) return 'high';
   if (sys >= 120 || dia >= 80) return 'elevated';
   return 'normal';
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleBPPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const status = document.getElementById('bp-photo-status');
+  status.style.color = 'var(--txt2)';
+  status.textContent = '📷 Reading photo...';
+
+  try {
+    const imageBase64 = await fileToBase64(file);
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/analyze-bp-photo`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'apikey': SUPABASE_KEY
+      },
+      body: JSON.stringify({ imageBase64, mimeType: file.type })
+    });
+    const data = await res.json();
+    if (data.error || !data.systolic) throw new Error(data.error || 'Could not read numbers');
+
+    document.getElementById('v-systolic').value = data.systolic;
+    document.getElementById('v-diastolic').value = data.diastolic;
+    if (data.pulse) document.getElementById('v-pulse').value = data.pulse;
+    status.style.color = 'var(--green)';
+    status.textContent = '✓ Filled in — double check before saving';
+  } catch (e) {
+    status.style.color = 'var(--red)';
+    status.textContent = '⚠ Could not read photo — enter numbers manually';
+  }
+  input.value = '';
 }
 
 function tagLabelFor(cfg, tag) {
