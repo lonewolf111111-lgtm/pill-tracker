@@ -282,6 +282,14 @@ body {
 /* ── SETTINGS ── */
 .settings-section { margin-bottom: 20px; }
 .settings-section h3 { font-size: 12px; color: var(--txt2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.about-block { margin-bottom: 14px; }
+.about-block-title { font-size: 13px; font-weight: 700; color: var(--txt); margin-bottom: 4px; }
+.about-block p { font-size: 12.5px; line-height: 1.55; color: var(--txt2); }
+.pinstripe {
+  height: 2px; margin: 18px auto 0; width: 72px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #d29922, transparent);
+  opacity: 0.55;
+}
 .settings-row {
   background: var(--card); border: 1px solid var(--bdr); border-radius: var(--radius);
   padding: 14px; display: flex; align-items: center; gap: 12px; margin-bottom: 6px;
@@ -466,7 +474,7 @@ body {
 <!-- ═══════════════════════════════════════════ -->
 <div class="screen" id="screen-dash">
   <div class="dash-header">
-    <div class="logo">💊</div>
+    <div class="logo" onclick="handleLogoTap()" style="cursor:default;">💊</div>
     <h1>PillLog</h1>
     <div class="user-email" id="dash-email"></div>
   </div>
@@ -536,6 +544,10 @@ body {
         <button class="btn btn-danger" style="margin-bottom:16px;" onclick="openSymptomModal(false)">
           🩺 Log How I Feel Right Now
         </button>
+        <div class="chart-box">
+          <svg id="severity-chart" viewBox="0 0 320 140" style="width:100%;height:140px;"></svg>
+          <div class="chart-legend"><span><span class="chart-dot" style="background:var(--red);"></span>Severity (1-10)</span></div>
+        </div>
         <div id="symptom-history">
           <div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No symptoms logged yet.</div>
         </div>
@@ -590,7 +602,10 @@ body {
             <div style="background:#fff;border-radius:10px;padding:14px;display:flex;justify-content:center;margin-bottom:10px;" id="share-qr-container"></div>
             <p style="font-size:12px;color:var(--txt2);text-align:center;margin-bottom:10px;">Have your doctor scan this with their phone camera</p>
             <div style="background:var(--surf);border:1px solid var(--bdr);border-radius:8px;padding:12px;font-size:13px;word-break:break-all;color:var(--txt2);margin-bottom:8px;" id="share-key-text"></div>
-            <button class="btn btn-ghost btn-sm" onclick="copyShareKey()">Copy Link</button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="copyShareKey()">Copy Link</button>
+              <button class="btn btn-ghost btn-sm" style="flex:1;color:var(--red);" onclick="revokeShareKey()">Revoke Access</button>
+            </div>
           </div>
         </div>
       </div>
@@ -614,7 +629,19 @@ body {
           </div>
         </div>
       </div>
-      <div style="text-align:center;margin-top:20px;font-size:11px;color:var(--txt3);">
+      <div class="settings-section">
+        <h3>About</h3>
+        <div class="about-block">
+          <div class="about-block-title">About This App</div>
+          <p>PillLog started as a way to keep track of my own medications, blood pressure, and symptoms after one too many missed doses and forgotten details at doctor visits. What began as a simple pill reminder grew into a full health log — vitals, food, and symptom tracking all in one place, built one piece at a time. It's not fancy, it's not corporate — just a tool built to work the way I needed it to.</p>
+        </div>
+        <div class="about-block">
+          <div class="about-block-title">About Me</div>
+          <p>I'm not a professional developer — just someone who got tired of losing track of my own health and decided to build something that actually worked for me. PillLog gets tested on my own life before anyone else's. If it helps you keep better track of yours too, that makes it worth building.</p>
+        </div>
+      </div>
+      <div class="pinstripe"></div>
+      <div style="text-align:center;margin-top:14px;font-size:11px;color:var(--txt3);">
         PillLog v1.0.0 · Made by lonewolf111111-lgtm · © 2026
       </div>
     </div>
@@ -760,6 +787,45 @@ body {
 </div>
 
 <!-- ═══════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════ -->
+<!-- SECRET CREDIT MODAL -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="credit-modal">
+  <div class="modal" style="text-align:center;">
+    <button class="modal-close" onclick="closeModal('credit-modal')">✕</button>
+    <div style="font-size:32px;margin-bottom:8px;">🤫</div>
+    <div class="modal-title">You Found It</div>
+    <p style="font-size:13px;color:var(--txt2);line-height:1.6;">
+      Built by Thomas — the ideas, the plan, the design, all him.<br>
+      Coded alongside an AI co-pilot named Claude, one late-night session at a time.<br><br>
+      <span class="pinstripe" style="display:block;margin:14px auto;"></span>
+      Now get back to trackin' your health. 💊
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<!-- AI PHOTO CONSENT MODAL -->
+<!-- ═══════════════════════════════════════════ -->
+<div class="modal-overlay" id="ai-consent-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('ai-consent-modal')">✕</button>
+    <div class="modal-title">📷 Before You Snap a Photo</div>
+    <p style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:12px;">
+      This feature sends your photo to Google's free Gemini AI service to read the numbers or identify the food.
+      Google's free tier may review or use photos sent this way to improve their AI models — it's not a fully private connection.
+    </p>
+    <p style="font-size:13px;color:var(--txt2);line-height:1.5;margin-bottom:16px;">
+      Don't use this if you'd rather not have a photo of you, your medications, or your surroundings looked at outside this app.
+      You can always type things in manually instead — no photo required.
+    </p>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" style="flex:1;" onclick="closeModal('ai-consent-modal')">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="flex:1;" onclick="acceptAiConsent()">I Understand, Continue</button>
+    </div>
+  </div>
+</div>
+
 <!-- FOOD MODAL -->
 <!-- ═══════════════════════════════════════════ -->
 <div class="modal-overlay" id="food-modal">
@@ -770,7 +836,7 @@ body {
       <label>What did you eat?</label>
       <input type="text" id="food-desc" placeholder="e.g. Chicken salad with ranch">
     </div>
-    <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:12px;" onclick="document.getElementById('food-photo-input').click()">📷 Snap Photo Instead</button>
+    <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:12px;" onclick="requestPhotoCapture('food')">📷 Snap Photo Instead</button>
     <input type="file" id="food-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleFoodPhoto(this)">
     <div id="food-photo-status" style="font-size:12px;margin-bottom:10px;min-height:16px;"></div>
     <div class="form-group">
@@ -925,6 +991,7 @@ async function loadDashboard() {
   renderPillList();
   renderTodayLog();
   await loadFoodHistory();
+  await loadShareKeyStatus();
 }
 
 async function loadMedications() {
@@ -1126,6 +1193,8 @@ async function loadSymptomHistory() {
     .select('*').eq('user_id', currentUser.id)
     .order('logged_at', { ascending: false }).limit(20);
 
+  renderSeverityChart(data || []);
+
   const container = document.getElementById('symptom-history');
   if (!data?.length) {
     container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--txt2);font-size:13px;">No symptoms logged yet.</div>';
@@ -1142,6 +1211,23 @@ async function loadSymptomHistory() {
       </div>
       <div class="log-time">${formatDate(log.logged_at)}</div>
     </div>`).join('');
+}
+
+function renderSeverityChart(data) {
+  const svg = document.getElementById('severity-chart');
+  if (!data.length) {
+    svg.innerHTML = '<text x="160" y="70" text-anchor="middle" fill="var(--txt3)" font-size="12">No data yet</text>';
+    return;
+  }
+  const points = data.slice(0, 14).reverse();
+  const w = 320, h = 140, padX = 24, padY = 16;
+  const xStep = points.length > 1 ? (w - padX * 2) / (points.length - 1) : 0;
+  const yPos = v => h - padY - (v / 10) * (h - padY * 2);
+  const linePts = points.map((p, i) => `${padX + i * xStep},${yPos(p.severity)}`).join(' ');
+  const dots = points.map((p, i) =>
+    `<circle cx="${padX + i * xStep}" cy="${yPos(p.severity)}" r="3" fill="${p.panic_episode ? 'var(--red)' : 'var(--blue)'}"></circle>`
+  ).join('');
+  svg.innerHTML = `<polyline points="${linePts}" fill="none" stroke="var(--red)" stroke-width="2"></polyline>${dots}`;
 }
 
 // ══════════════════════════════════════════════
@@ -1208,7 +1294,7 @@ function openVitalsModal() {
         <div class="form-group"><label>Diastolic</label><input type="number" id="v-diastolic" placeholder="80" inputmode="numeric"></div>
         <div class="form-group"><label>Pulse</label><input type="number" id="v-pulse" placeholder="70" inputmode="numeric"></div>
       </div>
-      <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;" onclick="document.getElementById('bp-photo-input').click()">📷 Snap Photo Instead</button>
+      <button type="button" class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px;" onclick="requestPhotoCapture('bp')">📷 Snap Photo Instead</button>
       <input type="file" id="bp-photo-input" accept="image/*" capture="environment" style="display:none;" onchange="handleBPPhoto(this)">
       <div id="bp-photo-status" style="font-size:12px;margin-top:6px;min-height:16px;"></div>`;
   } else {
@@ -1225,6 +1311,38 @@ function bpTag(sys, dia) {
   if (sys >= 140 || dia >= 90) return 'high';
   if (sys >= 120 || dia >= 80) return 'elevated';
   return 'normal';
+}
+
+let pendingPhotoType = null;
+let logoTapCount = 0;
+let logoTapTimer = null;
+
+function handleLogoTap() {
+  logoTapCount++;
+  clearTimeout(logoTapTimer);
+  logoTapTimer = setTimeout(() => { logoTapCount = 0; }, 1500);
+  if (logoTapCount >= 7) {
+    logoTapCount = 0;
+    document.getElementById('credit-modal').classList.add('open');
+  }
+}
+
+function requestPhotoCapture(type) {
+  if (localStorage.getItem('pilllog_ai_consent') === 'true') {
+    document.getElementById(type === 'bp' ? 'bp-photo-input' : 'food-photo-input').click();
+    return;
+  }
+  pendingPhotoType = type;
+  document.getElementById('ai-consent-modal').classList.add('open');
+}
+
+function acceptAiConsent() {
+  localStorage.setItem('pilllog_ai_consent', 'true');
+  closeModal('ai-consent-modal');
+  if (pendingPhotoType) {
+    document.getElementById(pendingPhotoType === 'bp' ? 'bp-photo-input' : 'food-photo-input').click();
+    pendingPhotoType = null;
+  }
 }
 
 function fileToBase64(file) {
@@ -1565,14 +1683,23 @@ async function saveEditFoodLog() {
 // ══════════════════════════════════════════════
 // SHARE KEY
 // ══════════════════════════════════════════════
-async function generateShareKey() {
-  const key = 'share_' + Math.random().toString(36).substr(2, 16);
-  const { error } = await sb.from('share_keys').insert({
-    user_id: currentUser.id,
-    share_key: key,
-    active: true
-  });
-  if (error) { showToast('Error: ' + error.message, true); return; }
+let currentShareKey = null;
+
+async function loadShareKeyStatus() {
+  const { data } = await sb.from('share_keys')
+    .select('*').eq('user_id', currentUser.id).eq('active', true)
+    .order('created_at', { ascending: false }).limit(1);
+
+  if (!data?.length) {
+    currentShareKey = null;
+    document.getElementById('share-key-display').style.display = 'none';
+    return;
+  }
+  currentShareKey = data[0].share_key;
+  renderShareKeyDisplay(currentShareKey);
+}
+
+function renderShareKeyDisplay(key) {
   const url = window.location.origin + window.location.pathname + '?share=' + key;
   document.getElementById('share-key-text').textContent = url;
   document.getElementById('share-key-display').style.display = 'block';
@@ -1584,7 +1711,32 @@ async function generateShareKey() {
   } catch (e) {
     document.getElementById('share-qr-container').innerHTML = '<span style="color:#900;font-size:12px;">QR code failed to generate</span>';
   }
+}
+
+async function generateShareKey() {
+  if (currentShareKey) {
+    await sb.from('share_keys').update({ active: false }).eq('share_key', currentShareKey);
+  }
+  const key = 'share_' + Math.random().toString(36).substr(2, 16);
+  const { error } = await sb.from('share_keys').insert({
+    user_id: currentUser.id,
+    share_key: key,
+    active: true
+  });
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  currentShareKey = key;
+  renderShareKeyDisplay(key);
   showToast('Share key generated!');
+}
+
+async function revokeShareKey() {
+  if (!currentShareKey) return;
+  if (!confirm('Revoke doctor access? The current link and QR code will stop working immediately.')) return;
+  const { error } = await sb.from('share_keys').update({ active: false }).eq('share_key', currentShareKey);
+  if (error) { showToast('Error: ' + error.message, true); return; }
+  currentShareKey = null;
+  document.getElementById('share-key-display').style.display = 'none';
+  showToast('Access revoked');
 }
 
 function copyShareKey() {
